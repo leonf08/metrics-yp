@@ -65,7 +65,6 @@ func CounterHandler(w http.ResponseWriter, r *http.Request) {
 
 func DefaultHandler(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Bad request", http.StatusBadRequest)
-	return
 }
 
 func checkURL(p []string) bool {
@@ -75,9 +74,5 @@ func checkURL(p []string) bool {
 
 	metricName := p[2]
 
-	if metricName == "" {
-		return false
-	}
-
-	return true
+	return metricName != ""
 }
