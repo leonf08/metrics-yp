@@ -4,14 +4,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	//"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
-type gauge float64
-type counter int64
-type MemStorage struct {
-	gaugeStorage   map[string]gauge
-	counterStorage map[string]counter
-}
+//var serverStorage storage.MemStorage
 
 func GaugeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -25,17 +22,19 @@ func GaugeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	metricName := parts[2]
+	//metricName := parts[2]
 	metricVal := parts[3]
 
-	val, err := strconv.ParseFloat(metricVal, 64)
+	_, err := strconv.ParseFloat(metricVal, 64)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	st := MemStorage{gaugeStorage: make(map[string]gauge)}
-	st.gaugeStorage[metricName] = gauge(val)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+
+	//serverStorage.WriteGaugeMetric(metricName, val)
 }
 
 func CounterHandler(w http.ResponseWriter, r *http.Request) {
@@ -50,17 +49,18 @@ func CounterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	metricName := parts[2]
 	metricVal := parts[3]
 
-	val, err := strconv.ParseInt(metricVal, 0, 64)
+	_, err := strconv.ParseInt(metricVal, 0, 64)
 	if err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	st := MemStorage{counterStorage: make(map[string]counter)}
-	st.counterStorage[metricName] = counter(val)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+
+	//serverStorage.WriteCounterMetric(val)
 }
 
 func DefaultHandler(w http.ResponseWriter, r *http.Request) {
