@@ -12,7 +12,7 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
-const requestForm = "http://localhost:8080/update"
+const requestForm = "http://127.0.0.1:8080/update"
 
 var (
 	pollInterval = 2 * time.Second
