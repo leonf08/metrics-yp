@@ -22,6 +22,8 @@ var (
 )
 
 func main() {
+	time.Sleep(time.Second)
+	
 	agentStorage := new(storage.MemStorage)
 	client := &http.Client{}
 	
