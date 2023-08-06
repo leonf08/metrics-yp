@@ -1,7 +1,8 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	"io"
 	"net/http"
 	"runtime"
 	"strconv"
@@ -22,7 +23,8 @@ var (
 
 func main() {
 	agentStorage := new(storage.MemStorage)
-
+	client := &http.Client{}
+	
 	for {
 		currentTime := time.Now()
 
@@ -33,8 +35,8 @@ func main() {
 
 		if currentTime.Sub(lastReportTime) >= reportInterval {
 			lastReportTime = currentTime
-			sendGaugeMetric(agentStorage)
-			sendCounterMetric(agentStorage)
+			sendGaugeMetric(client, agentStorage)
+			sendCounterMetric(client, agentStorage)
 		}
 
 		time.Sleep(time.Second)
@@ -50,7 +52,7 @@ func updateMetrics(s *storage.MemStorage) {
 	s.UpdateCounterMetrics()
 }
 
-func sendGaugeMetric(s *storage.MemStorage) {
+func sendGaugeMetric(cl *http.Client, s *storage.MemStorage) {
 	gaugeMetric := s.GetGaugeMetrics()
 
 	for _, el := range gaugeMetric {
@@ -58,26 +60,61 @@ func sendGaugeMetric(s *storage.MemStorage) {
 		val := strconv.FormatFloat(el.GetGaugeMetricVal(), 'f', -1, 64)
 		url := strings.Join([]string{requestForm, "gauge", name, val}, "/")
 
-		resp, err := http.Post(url, "text/plain", nil)
+		req, err := http.NewRequest(http.MethodPost, url, strings.NewReader("hello"))
 		if err != nil {
-			log.Fatalf("Error: %s", err.Error())
+			fmt.Println(err)
 		}
 
-		log.Println(resp.Header.Get("Content-Type"))
+		req.Header.Add("Content-Type", "text/plain")
+
+		resp, err := cl.Do(req)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		fmt.Println(resp.Request.URL)
+		fmt.Printf("Status Code: %d\r\n", resp.StatusCode)
+		for k, v := range resp.Header {
+			fmt.Printf("%s: %v\r\n", k, v)
+		}
+
+		_, err = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }
 
-func sendCounterMetric(s *storage.MemStorage) {
+func sendCounterMetric(cl *http.Client, s *storage.MemStorage) {
 	counterMetric := s.GetCounterMetrics()
 
 	name := counterMetric.GetCounterMetricName()
-	val := strconv.FormatInt(counterMetric.GetCounterMetricVal(), 64)
+	val := strconv.FormatInt(counterMetric.GetCounterMetricVal(), 10)
 	url := strings.Join([]string{requestForm, "counter", name, val}, "/")
 
-	resp, err := http.Post(url, "text/plain", nil)
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader("hello"))
 	if err != nil {
-		log.Fatalf("Error: %s", err.Error())
+		fmt.Println(err)
 	}
 
-	log.Println(resp.Header.Get("Content-Type"))
+	req.Header.Add("Content-Type", "text/plain")
+
+	resp, err := cl.Do(req)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Printf("Status Code: %d\r\n", resp.StatusCode)
+	for k, v := range resp.Header {
+		fmt.Printf("%s: %v\r\n", k, v)
+	}
+
+	_, err = io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+
+	if err != nil {
+		fmt.Println(err)
+	}
 }

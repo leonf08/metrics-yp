@@ -45,6 +45,8 @@ func TestGaugeHandler(t *testing.T) {
 			GaugeHandler(w, r)
 
 			res := w.Result()
+			defer res.Body.Close()
+
 			assert.Equal(t, tt.want.code, res.StatusCode)
 			assert.Equal(t, tt.want.contentType, res.Header.Get("Content-Type"))
 		})
@@ -88,6 +90,8 @@ func TestCounterHandler(t *testing.T) {
 			CounterHandler(w, r)
 
 			res := w.Result()
+			defer res.Body.Close()
+
 			assert.Equal(t, tt.want.code, res.StatusCode)
 			assert.Equal(t, tt.want.contentType, res.Header.Get("Content-Type"))
 		})
@@ -123,6 +127,8 @@ func TestDefaultHandler(t *testing.T) {
 			DefaultHandler(w, r)
 
 			res := w.Result()
+			defer res.Body.Close()
+			
 			assert.Equal(t, tt.want.code, res.StatusCode)
 			assert.Equal(t, tt.want.contentType, res.Header.Get("Content-Type"))
 		})
