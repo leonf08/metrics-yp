@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -22,12 +21,11 @@ var (
 )
 
 func main() {
-	time.Sleep(time.Second)
-	
-	agentStorage := new(storage.MemStorage)
+	agentStorage := storage.NewStorage()
 	client := &http.Client{}
 	
 	for {
+		time.Sleep(time.Second)
 		currentTime := time.Now()
 
 		if currentTime.Sub(lastPollTime) >= pollInterval {
@@ -40,63 +38,36 @@ func main() {
 			sendGaugeMetric(client, agentStorage)
 			sendCounterMetric(client, agentStorage)
 		}
-
-		time.Sleep(time.Second)
 	}
 	
 }
 
-func updateMetrics(s *storage.MemStorage) {
-	metrics := new(runtime.MemStats)
-	runtime.ReadMemStats(metrics)
-
-	s.UpdateGaugeMetrics(metrics)
-	s.UpdateCounterMetrics()
+func updateMetrics(st storage.Repository) {
+	st.UpdateGaugeMetrics()
+	st.UpdateCounterMetrics()
 }
 
-func sendGaugeMetric(cl *http.Client, s *storage.MemStorage) {
-	gaugeMetric := s.GetGaugeMetrics()
+func sendGaugeMetric(cl *http.Client, st storage.Repository) {
+	gaugeMetric := st.GetGaugeMetrics()
 
-	for _, el := range gaugeMetric {
-		name := el.GetGaugeMetricName()
-		val := strconv.FormatFloat(el.GetGaugeMetricVal(), 'f', -1, 64)
+	for name, v := range gaugeMetric {
+		val := strconv.FormatFloat(float64(v), 'f', -1, 64)
 		url := strings.Join([]string{requestForm, "gauge", name, val}, "/")
-
-		req, err := http.NewRequest(http.MethodPost, url, strings.NewReader("hello"))
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		req.Header.Add("Content-Type", "text/plain")
-
-		resp, err := cl.Do(req)
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		fmt.Println(resp.Request.URL)
-		fmt.Printf("Status Code: %d\r\n", resp.StatusCode)
-		for k, v := range resp.Header {
-			fmt.Printf("%s: %v\r\n", k, v)
-		}
-
-		_, err = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-
-		if err != nil {
-			fmt.Println(err)
-		}
+		sendRequest(cl, url)		
 	}
 }
 
-func sendCounterMetric(cl *http.Client, s *storage.MemStorage) {
-	counterMetric := s.GetCounterMetrics()
+func sendCounterMetric(cl *http.Client, st storage.Repository) {
+	counterMetric := st.GetCounterMetrics()
+	for name, v := range counterMetric {
+		val := strconv.FormatInt(int64(v), 10)
+		url := strings.Join([]string{requestForm, "counter", name, val}, "/")
+		sendRequest(cl, url)
+	}
+}
 
-	name := counterMetric.GetCounterMetricName()
-	val := strconv.FormatInt(counterMetric.GetCounterMetricVal(), 10)
-	url := strings.Join([]string{requestForm, "counter", name, val}, "/")
-
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader("hello"))
+func sendRequest(cl *http.Client, url string) {
+	req, err := http.NewRequest(http.MethodPost, url, nil)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -108,6 +79,7 @@ func sendCounterMetric(cl *http.Client, s *storage.MemStorage) {
 		fmt.Println(err)
 	}
 
+	fmt.Println(resp.Request.URL)
 	fmt.Printf("Status Code: %d\r\n", resp.StatusCode)
 	for k, v := range resp.Header {
 		fmt.Printf("%s: %v\r\n", k, v)
