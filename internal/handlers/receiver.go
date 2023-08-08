@@ -39,7 +39,7 @@ func GetMetric(st storage.Repository) http.HandlerFunc {
 		
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		io.WriteString(w, fmt.Sprintf("%s", v))
+		io.WriteString(w, v)
 	}
 }
 
