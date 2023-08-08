@@ -42,11 +42,11 @@ func (mem MockStorage) GetCounterMetricVal(name string) (storage.CounterMetric, 
 }
 
 func (mem *MockStorage) UpdateGaugeMetrics() {
-	return
+	
 }
 
 func (mem *MockStorage) UpdateCounterMetrics() {
-	return
+	
 }
 
 func TestMetricsRouter(t *testing.T) {
@@ -167,6 +167,7 @@ func TestMetricsRouter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := testRequest(t, ts, tc.method, tc.url)
+			defer resp.Body.Close()
 			assert.Equal(t, tc.want.status, resp.StatusCode)
 			assert.Equal(t, tc.want.contentType, resp.Header.Get("Content-Type"))
 		})
