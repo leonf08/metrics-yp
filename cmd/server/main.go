@@ -9,10 +9,12 @@ import (
 )
 
 func main() {
+	parseFlags()
+
 	serverStorage := storage.NewStorage()
 	r := MetricsRouter(serverStorage)
 
-	err := http.ListenAndServe(`:8080`, r)
+	err := http.ListenAndServe(flagAddr, r)
 	if err != nil {
 		panic(err)
 	}
