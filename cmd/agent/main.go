@@ -12,20 +12,17 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
-var (
-	lastPollTime time.Time
-	lastReportTime time.Time
-)
-
 func main() {
 	parseFlags()
 	request := "http://" + addr + "/update"
 
 	agentStorage := storage.NewStorage()
 	client := &http.Client{}
+
+	lastPollTime := time.Now()
+	lastReportTime := time.Now()
 	
 	for {
-		time.Sleep(time.Second)
 		currentTime := time.Now()
 
 		if currentTime.Sub(lastPollTime) >= time.Duration(pollInterval*int(time.Second)) {
@@ -38,6 +35,8 @@ func main() {
 			sendGaugeMetric(client, agentStorage, request)
 			sendCounterMetric(client, agentStorage, request)
 		}
+
+		time.Sleep(time.Second)
 	}
 	
 }

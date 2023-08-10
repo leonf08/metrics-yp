@@ -13,10 +13,10 @@ var (
 	pollInterval int
 )
 
-type config struct {
-	addressEnv string	`env:"ADDRESS"`
-	reportIntEnv int	`env:"REPORT_INTERVAL"`
-	pollIntEnv int		`env:"POLL_INTERVAL"`
+type Config struct {
+	AddressEnv string	`env:"ADDRESS"`
+	ReportIntEnv int	`env:"REPORT_INTERVAL"`
+	PollIntEnv int		`env:"POLL_INTERVAL"`
 }
 
 func parseFlags() {
@@ -25,21 +25,21 @@ func parseFlags() {
 	flag.IntVar(&pollInterval, "p", 2, "Poll interval for metrics")
 	flag.Parse()
 
-	var conf config
-	if err := env.Parse(&conf); err != nil {
+	var conf Config
+	err := env.Parse(&conf)
+	if err != nil {
 		log.Fatal(err)
 	}
 
-
-	if conf.addressEnv != "" {
-		addr = conf.addressEnv
+	if conf.AddressEnv != "" {
+		addr = conf.AddressEnv
 	}
 
-	if conf.reportIntEnv != 0 {
-		reportInterval = conf.reportIntEnv
+	if conf.ReportIntEnv != 0 {
+		reportInterval = conf.ReportIntEnv
 	}
 
-	if conf.pollIntEnv != 0 {
-		pollInterval = conf.pollIntEnv
+	if conf.PollIntEnv != 0 {
+		pollInterval = conf.PollIntEnv
 	}
 }
