@@ -28,12 +28,12 @@ func main() {
 		time.Sleep(time.Second)
 		currentTime := time.Now()
 
-		if currentTime.Sub(lastPollTime) >= pollInterval {
+		if currentTime.Sub(lastPollTime) >= time.Duration(pollInterval*int(time.Second)) {
 			lastPollTime = currentTime
 			updateMetrics(agentStorage)	
 		}
 
-		if currentTime.Sub(lastReportTime) >= reportInterval {
+		if currentTime.Sub(lastReportTime) >= time.Duration(reportInterval*int(time.Second)) {
 			lastReportTime = currentTime
 			sendGaugeMetric(client, agentStorage, request)
 			sendCounterMetric(client, agentStorage, request)
