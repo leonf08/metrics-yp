@@ -5,13 +5,14 @@ import (
 	"os"
 )
 
-var flagAddr string
-
-func parseFlags() {
-	flag.StringVar(&flagAddr, "a", ":8080", "Host address to run server")
+func parseFlags() string {
+	var addr string
+	flag.StringVar(&addr, "a", ":8080", "Host address to run server")
 	flag.Parse()
 
-	if addr := os.Getenv("ADDRESS"); addr != "" {
-		flagAddr = addr
+	if addrEnv := os.Getenv("ADDRESS"); addrEnv != "" {
+		addr = addrEnv
 	}
+
+	return addr
 }

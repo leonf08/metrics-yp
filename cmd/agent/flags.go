@@ -7,39 +7,41 @@ import (
 	"github.com/caarlos0/env/v6"
 )
 
-var (
-	addr string
-	reportInterval int
-	pollInterval int
-)
-
 type Config struct {
-	AddressEnv string	`env:"ADDRESS"`
-	ReportIntEnv int	`env:"REPORT_INTERVAL"`
-	PollIntEnv int		`env:"POLL_INTERVAL"`
+	Address string	`env:"ADDRESS"`
+	ReportInt int	`env:"REPORT_INTERVAL"`
+	PollInt int		`env:"POLL_INTERVAL"`
 }
 
-func parseFlags() {
+func parseFlags() *Config {
+	var (
+		addr string
+		reportInterval int
+		pollInterval int
+	)
+
 	flag.StringVar(&addr, "a", "localhost:8080", "Host address of the server")
 	flag.IntVar(&reportInterval, "r", 10, "Report interval to server")
 	flag.IntVar(&pollInterval, "p", 2, "Poll interval for metrics")
 	flag.Parse()
 
-	var conf Config
-	err := env.Parse(&conf)
+	cfg := new(Config)
+	err := env.Parse(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if conf.AddressEnv != "" {
-		addr = conf.AddressEnv
+	if cfg.Address == "" {
+		cfg.Address = addr
 	}
 
-	if conf.ReportIntEnv != 0 {
-		reportInterval = conf.ReportIntEnv
+	if cfg.ReportInt == 0 {
+		cfg.ReportInt = reportInterval
 	}
 
-	if conf.PollIntEnv != 0 {
-		pollInterval = conf.PollIntEnv
+	if cfg.PollInt != 0 {
+		cfg.PollInt = pollInterval
 	}
+
+	return cfg
 }

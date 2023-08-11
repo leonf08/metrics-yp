@@ -13,8 +13,8 @@ import (
 )
 
 func main() {
-	parseFlags()
-	request := "http://" + addr + "/update"
+	cfg := parseFlags()
+	request := "http://" + cfg.Address + "/update"
 
 	agentStorage := storage.NewStorage()
 	client := &http.Client{}
@@ -25,12 +25,12 @@ func main() {
 	for {
 		currentTime := time.Now()
 
-		if currentTime.Sub(lastPollTime) >= time.Duration(pollInterval*int(time.Second)) {
+		if currentTime.Sub(lastPollTime) >= time.Duration(cfg.PollInt*int(time.Second)) {
 			lastPollTime = currentTime
 			updateMetrics(agentStorage)	
 		}
 
-		if currentTime.Sub(lastReportTime) >= time.Duration(reportInterval*int(time.Second)) {
+		if currentTime.Sub(lastReportTime) >= time.Duration(cfg.ReportInt*int(time.Second)) {
 			lastReportTime = currentTime
 			sendGaugeMetric(client, agentStorage, request)
 			sendCounterMetric(client, agentStorage, request)
