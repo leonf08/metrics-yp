@@ -59,7 +59,7 @@ func TestMetricsRouter(t *testing.T) {
 		},
 	}
 
-	ts := httptest.NewServer(MetricsRouter(mockStorage))
+	ts := httptest.NewServer(metricsRouter(mockStorage))
 
 	type want struct {
 		status int
