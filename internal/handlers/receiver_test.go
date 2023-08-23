@@ -26,7 +26,7 @@ type MockStorage struct {
 }
 
 func (m *MockStorage) Update(v interface{}) {
-	return
+	
 }
 
 func (m *MockStorage) ReadAll() map[string]interface{} {
@@ -36,18 +36,18 @@ func (m *MockStorage) ReadAll() map[string]interface{} {
 func (m *MockStorage) GetVal(k string) (interface{}, error) {
 	v, ok := m.storage[k]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("Metric %s not found", k))
+		return nil, fmt.Errorf("metric %s not found", k)
 	}
 
 	return v, nil
 }
 
-func (st *MockStorage) SetVal(k string, v interface{}) error {
+func (m *MockStorage) SetVal(k string, v interface{}) error {
 	switch val := v.(type) {
 	case float64:
-		st.storage[k] = storage.GaugeMetric(val)
+		m.storage[k] = storage.GaugeMetric(val)
 	case int64:
-		st.storage[k] = storage.CounterMetric(val)
+		m.storage[k] = storage.CounterMetric(val)
 	default:
 		return errors.New("Incorrect type of value")
 	}

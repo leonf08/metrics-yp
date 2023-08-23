@@ -34,10 +34,10 @@ func StartApp() error {
 	router.Post("/", handlers.DefaultHandler(storage))
 	router.Route("/value", func(r chi.Router) {
 		r.Get("/{type}/{name}", handlers.GetMetric(storage))
-		r.Post("/", handlers.GetMetric(storage))
+		r.Post("/", handlers.GetMetricJSON(storage))
 	})
 	router.Route("/update", func(r chi.Router) {
-		r.Post("/", handlers.UpdateMetric(storage))
+		r.Post("/", handlers.UpdateMetricJSON(storage))
 		r.Post("/{type}/{name}/{val}", handlers.UpdateMetric(storage))
 	})
 

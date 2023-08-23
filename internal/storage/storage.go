@@ -75,7 +75,7 @@ func (st *MemStorage) SetVal(k string, v interface{}) error {
 	case int64:
 		st.storage[k] = CounterMetric(val)
 	default:
-		return errors.New("Incorrect type of value")
+		return errors.New("incorrect type of value")
 	}
 
 	return nil
@@ -84,7 +84,7 @@ func (st *MemStorage) SetVal(k string, v interface{}) error {
 func (st *MemStorage) GetVal(k string) (interface{}, error) {
 	v, ok := st.storage[k]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("Metric %s not found", k))
+		return nil, fmt.Errorf("metric %s not found", k)
 	}
 
 	return v, nil
