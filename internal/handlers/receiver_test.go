@@ -92,7 +92,7 @@ func TestGetMetric(t *testing.T) {
 			want: want{
 				code: http.StatusNotFound,
 				contentType: "text/plain; charset=utf-8",
-				body: "Metric Metric3 not found\n",
+				body: "metric Metric3 not found\n",
 			},
 		},
 		{
@@ -101,7 +101,7 @@ func TestGetMetric(t *testing.T) {
 			want: want{
 				code: http.StatusNotFound,
 				contentType: "text/plain; charset=utf-8",
-				body: "Metric Metric4 not found\n",
+				body: "metric Metric4 not found\n",
 			},
 		},
 	}
