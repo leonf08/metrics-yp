@@ -126,9 +126,19 @@ func GetMetricJSON(st storage.Repository) http.HandlerFunc {
 
 		switch metrics.MType {
 		case "gauge":
-			*metrics.Value = v.(float64)
+			val, ok := v.(storage.GaugeMetric)
+			if !ok {
+				http.Error(w, "Type assertion error", http.StatusInternalServerError)
+				return
+			}
+			*metrics.Value = float64(val)
 		case "counter":
-			*metrics.Delta = v.(int64)
+			val, ok := v.(storage.CounterMetric)
+			if !ok {
+				http.Error(w, "Type assertion error", http.StatusInternalServerError)
+				return
+			}
+			*metrics.Delta = int64(val)
 		default:
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
