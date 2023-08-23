@@ -2,7 +2,6 @@ package serverapp
 
 import (
 	"flag"
-	"fmt"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/go-chi/chi/v5"
@@ -21,16 +20,15 @@ func StartApp() error {
 
 	log := logger.NewLogger(l)
 
-	address := *flag.String("a", ":8080", "Host address of the server")
+	address := flag.String("a", ":8080", "Host address of the server")
 	flag.Parse()
 
-	cfg := serverconf.NewConfig(address)
+	cfg := serverconf.NewConfig(*address)
 	err = env.Parse(cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(cfg)
 	storage := storage.NewStorage()
 
 	router := chi.NewRouter()

@@ -1,16 +1,16 @@
 package agentapp
 
 import (
+	"io"
 	"net/http"
 	"runtime"
-	"time"
 	"strconv"
 	"strings"
-	"io"
+	"time"
 
 	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
-	"github.com/leonf08/metrics-yp.git/internal/storage"
 	"github.com/leonf08/metrics-yp.git/internal/logger"
+	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
 type Agent struct {
@@ -71,6 +71,7 @@ func sendMetric(cl *http.Client, st storage.Repository, log logger.Logger, req s
 		} 
 		
 		sendRequest(cl, log, url)
+		time.Sleep(10*time.Millisecond)
 	}
 }
 
