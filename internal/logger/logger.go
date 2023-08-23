@@ -3,9 +3,13 @@ package logger
 import (
 	"net/http"
 	"time"
-
-	"go.uber.org/zap"
 )
+
+type Logger interface {
+	Infoln(args ...interface{})
+	Errorln(args ...interface{})
+	Fatalln(args ...interface{})
+}
 
 type (
 	responseData struct {
@@ -13,63 +17,53 @@ type (
 		size int
 	}
 
-	loggerResponseWriter struct {
+	loggingResponse struct {
 		http.ResponseWriter
 		responseData *responseData
 	}
+
+	Log struct {
+		Logger
+	}
 )
 
-func (r *loggerResponseWriter) Write(b []byte) (int, error) {
-    size, err := r.ResponseWriter.Write(b) 
-    r.responseData.size += size
+func (l *loggingResponse) Write(b []byte) (int, error) {
+    size, err := l.ResponseWriter.Write(b)
+    l.responseData.size += size
     return size, err
 }
 
-func (r *loggerResponseWriter) WriteHeader(statusCode int) {
-    r.ResponseWriter.WriteHeader(statusCode) 
-    r.responseData.status = statusCode
+func (l *loggingResponse) WriteHeader(statusCode int) {
+    l.ResponseWriter.WriteHeader(statusCode) 
+    l.responseData.status = statusCode
 }
 
-var Log *zap.Logger = zap.NewNop()
-
-func InitLogger() error {
-	lvl, err := zap.ParseAtomicLevel("info")
-    if err != nil {
-        return err
-    }
-
-	cfg := zap.NewProductionConfig()
-	cfg.Level = lvl
-
-	zl, err := cfg.Build()
-	if err != nil {
-		return err
-	}
-
-	Log = zl
-	return nil
+func NewLogger(l Logger) *Log {
+	return &Log{Logger: l}
 }
 
-func Logger(h http.Handler) http.Handler {
-	return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request)  {
-		lw := &loggerResponseWriter{
-			ResponseWriter: w,
-			responseData: &responseData{},
+func LoggingMiddleware(log Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			lw := &loggingResponse{
+				responseData: &responseData{},
+			}
+			lw.ResponseWriter = w
+
+			start := time.Now()
+			next.ServeHTTP(lw, r)
+			duration := time.Since(start)
+
+			log.Infoln("Incoming HTTP request:",
+					"uri", r.URL.String(),
+					"method", r.Method,
+					"duration", duration)	
+
+			log.Infoln("Response",
+					"status", lw.responseData.status,
+					"size", lw.responseData.size)
 		}
 
-		start := time.Now()
-
-		h.ServeHTTP(lw, r)
-
-		duration := time.Since(start)
-
-		Log.Info("Incoming HTTP request", 
-			zap.String("url", r.URL.RawPath), 
-			zap.String("method", r.Method),
-			zap.String("duration", duration.String()))
-
-		Log.Info("Response",
-			zap.Int("status", lw.responseData.status),
-			zap.Int("size", lw.responseData.size))
-	})
+		return http.HandlerFunc(fn)
+	}
 }
