@@ -73,7 +73,11 @@ func (st *MemStorage) SetVal(k string, v interface{}) error {
 	case float64:
 		st.storage[k] = GaugeMetric(val)
 	case int64:
-		st.storage[k] = CounterMetric(val)
+		if cv := st.storage[k]; cv != nil {
+			st.storage[k] = CounterMetric(val) + cv.(CounterMetric)
+		} else {
+			st.storage[k] = CounterMetric(val)
+		}
 	default:
 		return errors.New("incorrect type of value")
 	}

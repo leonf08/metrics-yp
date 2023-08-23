@@ -1,0 +1,65 @@
+=== RUN   TestIteration3A
+=== RUN   TestIteration3A/TestFrameworkUsage
+--- PASS: TestIteration3A (0.00s)
+    --- PASS: TestIteration3A/TestFrameworkUsage (0.00s)
+=== RUN   TestIteration3B
+=== RUN   TestIteration3B/TestCounter
+=== RUN   TestIteration3B/TestCounter/update_sequence
+=== RUN   TestIteration3B/TestCounter/get_unknown
+=== RUN   TestIteration3B/TestGauge
+=== RUN   TestIteration3B/TestGauge/update_sequence
+=== RUN   TestIteration3B/TestGauge/get_unknown
+=== NAME  TestIteration3B
+    iteration3b_test.go:85: Получен STDOUT лог процесса:
+        
+        2023-08-23T16:00:31.323+0200	INFO	serverapp/server.go:24	Running server :8080
+        2023-08-23T16:00:31.423+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /value/counter/testSetGet153 method GET duration 29.191µs
+        2023-08-23T16:00:31.423+0200	INFO	logger/logger.go:62	Response status 404 size 31
+        Handler UpdateMetric
+        Setting 588
+        2023-08-23T16:00:31.424+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /update/counter/testSetGet153/588 method POST duration 41.156µs
+        2023-08-23T16:00:31.424+0200	INFO	logger/logger.go:62	Response status 200 size 0
+        Handler GetMetric
+        Getting 588
+        2023-08-23T16:00:31.424+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /value/counter/testSetGet153 method GET duration 29.037µs
+        2023-08-23T16:00:31.424+0200	INFO	logger/logger.go:62	Response status 200 size 3
+        Handler UpdateMetric
+        Setting 715
+        2023-08-23T16:00:31.425+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /update/counter/testSetGet153/715 method POST duration 34.712µs
+        2023-08-23T16:00:31.425+0200	INFO	logger/logger.go:62	Response status 200 size 0
+        Handler GetMetric
+        Getting 1303
+        2023-08-23T16:00:31.425+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /value/counter/testSetGet153 method GET duration 23.374µs
+        2023-08-23T16:00:31.425+0200	INFO	logger/logger.go:62	Response status 200 size 4
+        Handler UpdateMetric
+        Setting 840
+        2023-08-23T16:00:31.425+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /update/counter/testSetGet153/840 method POST duration 23.384µs
+        2023-08-23T16:00:31.425+0200	INFO	logger/logger.go:62	Response status 200 size 0
+        Handler GetMetric
+        Getting 2143
+        2023-08-23T16:00:31.425+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /value/counter/testSetGet153 method GET duration 24.96µs
+        2023-08-23T16:00:31.425+0200	INFO	logger/logger.go:62	Response status 200 size 4
+        2023-08-23T16:00:31.426+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /value/counter/testUnknown76 method GET duration 7.362µs
+        2023-08-23T16:00:31.426+0200	INFO	logger/logger.go:62	Response status 404 size 31
+        2023-08-23T16:00:31.426+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /update/gauge/testSetGet181/435878.763 method POST duration 21.477µs
+        2023-08-23T16:00:31.426+0200	INFO	logger/logger.go:62	Response status 200 size 0
+        2023-08-23T16:00:31.427+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /value/gauge/testSetGet181 method GET duration 16.036µs
+        2023-08-23T16:00:31.427+0200	INFO	logger/logger.go:62	Response status 200 size 10
+        2023-08-23T16:00:31.427+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /update/gauge/testSetGet181/158129.375 method POST duration 5.512µs
+        2023-08-23T16:00:31.427+0200	INFO	logger/logger.go:62	Response status 200 size 0
+        2023-08-23T16:00:31.427+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /value/gauge/testSetGet181 method GET duration 5.769µs
+        2023-08-23T16:00:31.427+0200	INFO	logger/logger.go:62	Response status 200 size 10
+        2023-08-23T16:00:31.427+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /update/gauge/testSetGet181/630057.2 method POST duration 5.733µs
+        2023-08-23T16:00:31.427+0200	INFO	logger/logger.go:62	Response status 200 size 0
+        2023-08-23T16:00:31.428+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /value/gauge/testSetGet181 method GET duration 4.942µs
+        2023-08-23T16:00:31.428+0200	INFO	logger/logger.go:62	Response status 200 size 8
+        2023-08-23T16:00:31.428+0200	INFO	logger/logger.go:57	Incoming HTTP request: uri /value/gauge/testUnknown232 method GET duration 5.836µs
+        2023-08-23T16:00:31.428+0200	INFO	logger/logger.go:62	Response status 404 size 32
+--- PASS: TestIteration3B (0.11s)
+    --- PASS: TestIteration3B/TestCounter (0.00s)
+        --- PASS: TestIteration3B/TestCounter/update_sequence (0.00s)
+        --- PASS: TestIteration3B/TestCounter/get_unknown (0.00s)
+    --- PASS: TestIteration3B/TestGauge (0.00s)
+        --- PASS: TestIteration3B/TestGauge/update_sequence (0.00s)
+        --- PASS: TestIteration3B/TestGauge/get_unknown (0.00s)
+PASS
