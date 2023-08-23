@@ -36,8 +36,6 @@ func GetMetric(st storage.Repository) http.HandlerFunc {
 			}
 
 			v := val.(storage.CounterMetric)
-			fmt.Println("Handler GetMetric")
-			fmt.Printf("Getting %d\n", v)
 			vStr = strconv.FormatInt(int64(v), 10)
 		default:
 			http.Error(w, "Bad request", http.StatusBadRequest)
@@ -74,8 +72,6 @@ func UpdateMetric(st storage.Repository) http.HandlerFunc {
 				return
 			}
 			
-			fmt.Println("Handler UpdateMetric")
-			fmt.Printf("Setting %d\n", v)
 			if err = st.SetVal(name, v); err != nil {
 				http.Error(w, err.Error(), http.StatusNotFound)
 				return

@@ -2,8 +2,9 @@ package serverapp
 
 import (
 	"flag"
-	"os"
+	"fmt"
 
+	"github.com/caarlos0/env/v6"
 	"github.com/go-chi/chi/v5"
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
 	"github.com/leonf08/metrics-yp.git/internal/handlers"
@@ -20,13 +21,16 @@ func StartApp() error {
 
 	log := logger.NewLogger(l)
 
-	address := os.Getenv("ADDRESS")
-	if address == "" {
-		address = *flag.String("a", ":8080", "Host address of the server")
-		flag.Parse()
+	address := *flag.String("a", ":8080", "Host address of the server")
+	flag.Parse()
+
+	cfg := serverconf.NewConfig(address)
+	err = env.Parse(cfg)
+	if err != nil {
+		panic(err)
 	}
 
-	config := serverconf.NewConfig(address)
+	fmt.Println(cfg)
 	storage := storage.NewStorage()
 
 	router := chi.NewRouter()
@@ -41,7 +45,7 @@ func StartApp() error {
 		r.Post("/{type}/{name}/{val}", handlers.UpdateMetric(storage))
 	})
 
-	server := NewServer(storage, config)
+	server := NewServer(storage, cfg)
 	h := logger.LoggingMiddleware(log)
 
 	return server.Run(h(router), log)

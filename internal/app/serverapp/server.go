@@ -21,7 +21,7 @@ func NewServer(st storage.Repository, cfg *serverconf.Config) *Server {
 }
 
 func (server Server) Run(h http.Handler, log logger.Logger) error {
-	log.Infoln("Running server", server.config.Address())
-	return http.ListenAndServe(server.config.Address(), h)
+	log.Infoln("Running server", server.config.Addr)
+	return http.ListenAndServe(server.config.Addr, h)
 }
 

@@ -1,15 +1,11 @@
 package serverconf
 
 type Config struct {
-	addr string
+	Addr string `env:"ADDRESS"`
 }
 
 func NewConfig(addr string) *Config {
 	return &Config{
-		addr: addr,
+		Addr: addr,
 	}
-}
-
-func (c Config) Address() string {
-	return c.addr
 }

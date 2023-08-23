@@ -30,7 +30,7 @@ func NewAgent(cl *http.Client, st storage.Repository, cfg *agentconf.Config) *Ag
 func (a *Agent) Run(log logger.Logger) {
 	log.Infoln("Running agent")
 	m := new(runtime.MemStats)
-	request := "http://" + a.config.Address() + "/update"
+	request := "http://" + a.config.Addr + "/update"
 
 	lastPollTime := time.Now()
 	lastReportTime := time.Now()
@@ -38,14 +38,14 @@ func (a *Agent) Run(log logger.Logger) {
 	for {
 		currentTime := time.Now()
 
-		if currentTime.Sub(lastPollTime) >= time.Duration(a.config.Pollinterval()*int(time.Second)) {
+		if currentTime.Sub(lastPollTime) >= time.Duration(a.config.PollInt*int(time.Second)) {
 			lastPollTime = currentTime
 
 			runtime.ReadMemStats(m)
 			a.storage.Update(m)	
 		}
 
-		if currentTime.Sub(lastReportTime) >= time.Duration(a.config.ReportInterval()*int(time.Second)) {
+		if currentTime.Sub(lastReportTime) >= time.Duration(a.config.ReportInt*int(time.Second)) {
 			lastReportTime = currentTime
 			sendMetric(a.client, a.storage, log, request)
 		}
