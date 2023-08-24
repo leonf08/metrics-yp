@@ -1,9 +1,10 @@
 package handlers
 
 import (
+	"bytes"
 	"errors"
-	"io"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -240,6 +241,150 @@ func TestDefaultHandler(t *testing.T) {
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 			assert.Equal(t, tt.want.contentType, resp.Header.Get("Content-Type"))
+		})
+	}
+}
+
+func TestGetMetricJSON(t *testing.T) {
+	storage := &MockStorage{
+		storage: map[string]interface{}{
+			"Metric1": storage.GaugeMetric(2.5),
+			"Metric2": storage.CounterMetric(3),
+		},
+	}
+	
+	tests := []struct {
+		name string
+		method string
+		request string
+		body string
+		want want
+	}{
+		{
+			name: "test 1, get Metric1",
+			method: http.MethodPost,
+			request: "/value/",
+			body: `{"id": "Metric1", "type": "gauge"}`,
+			want: want{
+				code: http.StatusOK,
+				contentType: "application/json",
+				body: `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
+			},
+		},
+		{
+			name: "test 2, get Metric2",
+			method: http.MethodPost,
+			request: "/value/",
+			body: `{"id": "Metric2", "type": "counter"}`,
+			want: want{
+				code: http.StatusOK,
+				contentType: "application/json",
+				body: `{"id": "Metric2", "type": "counter", "delta": 3}`,
+			},
+		},
+		{
+			name: "test 3, get unkown Metric3",
+			method: http.MethodPost,
+			request: "/value/",
+			body: `{"id": "Metric3", "type": "counter"}`,
+			want: want{
+				code: http.StatusNotFound,
+				contentType: "text/plain; charset=utf-8",
+				body: "",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			route := chi.NewRouter()
+			route.Route("/value", func(r chi.Router) {
+				r.Post("/", GetMetricJSON(storage))
+			})
+			s := httptest.NewServer(route)
+			defer s.Close()
+
+			r, err := http.NewRequest(tt.method, s.URL+tt.request, bytes.NewReader([]byte(tt.body)))
+			require.NoError(t, err)
+			r.Header.Set("Content-Type", "application/json")
+			resp, err := s.Client().Do(r)
+			require.NoError(t, err)
+
+			var buf bytes.Buffer
+			buf.ReadFrom(resp.Body)
+			
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.want.code, resp.StatusCode)
+			assert.Equal(t, tt.want.contentType, resp.Header.Get("Content-Type"))
+			
+			if tt.want.body != "" {
+				assert.JSONEq(t, tt.want.body, buf.String())
+			}
+		})
+	}
+}
+
+func TestUpdateMetricJSON(t *testing.T) {
+	storage := &MockStorage{
+		storage: map[string]interface{}{},
+	}
+	
+	tests := []struct {
+		name string
+		method string
+		request string
+		body string
+		want want
+	}{
+		{
+			name: "test 1, add Metric1",
+			method: http.MethodPost,
+			request: "/update/",
+			body: `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
+			want: want{
+				code: http.StatusOK,
+				contentType: "application/json",
+				body: `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
+			},
+		},
+		{
+			name: "test 2, update Metric1",
+			method: http.MethodPost,
+			request: "/update/",
+			body: `{"id": "Metric1", "type": "gauge", "value": 3.5}`,
+			want: want{
+				code: http.StatusOK,
+				contentType: "application/json",
+				body: `{"id": "Metric1", "type": "gauge", "value": 3.5}`,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			route := chi.NewRouter()
+			route.Route("/update", func(r chi.Router) {
+				r.Post("/", UpdateMetricJSON(storage))
+			})
+			s := httptest.NewServer(route)
+			defer s.Close()
+
+			r, err := http.NewRequest(tt.method, s.URL+tt.request, bytes.NewReader([]byte(tt.body)))
+			require.NoError(t, err)
+			r.Header.Set("Content-Type", "application/json")
+			resp, err := s.Client().Do(r)
+			require.NoError(t, err)
+
+			var buf bytes.Buffer
+			buf.ReadFrom(resp.Body)
+			
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.want.code, resp.StatusCode)
+			assert.Equal(t, tt.want.contentType, resp.Header.Get("Content-Type"))
+			
+			if tt.want.body != "" {
+				assert.JSONEq(t, tt.want.body, buf.String())
+			}
 		})
 	}
 }
