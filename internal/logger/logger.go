@@ -3,8 +3,13 @@ package logger
 import (
 	"net/http"
 	"time"
-	"log/slog"
 )
+
+type Logger interface {
+	Infoln(args ...interface{})
+	Errorln(args ...interface{})
+	Fatalln(args ...interface{})
+}
 
 type (
 	responseData struct {
@@ -16,6 +21,10 @@ type (
 	loggingResponse struct {
 		http.ResponseWriter
 		responseData *responseData
+	}
+
+	Log struct {
+		Logger
 	}
 )
 
@@ -31,25 +40,33 @@ func (l *loggingResponse) WriteHeader(statusCode int) {
     l.responseData.status = statusCode
 }
 
-func LoggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lw := &loggingResponse{
-			responseData: &responseData{},
+func NewLogger(l Logger) *Log {
+	return &Log{Logger: l}
+}
+
+func LoggingMiddleware(log Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		fn := func(w http.ResponseWriter, r *http.Request) {
+			lw := &loggingResponse{
+				responseData: &responseData{},
+			}
+			lw.ResponseWriter = w
+
+			start := time.Now()
+			next.ServeHTTP(lw, r)
+			duration := time.Since(start)
+
+			log.Infoln("Incoming HTTP request",
+					"uri", r.URL.String(),
+					"method", r.Method,
+					"duration", duration)	
+
+			log.Infoln("Response",
+					"status", lw.responseData.status,
+					"body", lw.responseData.body,
+					"size", lw.responseData.size)
 		}
-		lw.ResponseWriter = w
 
-		start := time.Now()
-		next.ServeHTTP(lw, r)
-		duration := time.Since(start)
-
-		slog.Info("Incoming HTTP request:",
-				"uri", r.URL.String(),
-				"method", r.Method,
-				"duration", duration)	
-
-		slog.Info("Response",
-				"status", lw.responseData.status,
-				"size", lw.responseData.size,
-				"body", lw.responseData.body)
-	})
+		return http.HandlerFunc(fn)
+	}
 }

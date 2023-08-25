@@ -144,12 +144,12 @@ func GetMetricJSON(st storage.Repository) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		if err = json.NewEncoder(w).Encode(&metrics); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 	}
 }
@@ -174,12 +174,13 @@ func UpdateMetricJSON(st storage.Repository) http.HandlerFunc {
 		}
 
 		st.SetVal(metrics.ID, v)
+
+		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(&metrics); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 	}
 }

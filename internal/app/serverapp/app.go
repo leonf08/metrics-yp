@@ -2,8 +2,6 @@ package serverapp
 
 import (
 	"flag"
-	"log/slog"
-	"os"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/go-chi/chi/v5"
@@ -11,17 +9,22 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/handlers"
 	"github.com/leonf08/metrics-yp.git/internal/logger"
 	"github.com/leonf08/metrics-yp.git/internal/storage"
+	"go.uber.org/zap"
 )
 
 func StartApp() error {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(log)
+	l, err := initLogger()
+	if err != nil {
+		return err
+	}
+
+	log := logger.NewLogger(l)
 
 	address := flag.String("a", ":8080", "Host address of the server")
 	flag.Parse()
 
 	cfg := serverconf.NewConfig(*address)
-	err := env.Parse(cfg)
+	err = env.Parse(cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -41,5 +44,23 @@ func StartApp() error {
 	})
 
 	server := NewServer(storage, cfg)
-	return server.Run(logger.LoggingMiddleware(router))
+	fn := logger.LoggingMiddleware(log)
+
+	return server.Run(fn(router), log)
+}
+
+func initLogger() (logger.Logger, error) {
+    lvl, err := zap.ParseAtomicLevel("info")
+    if err != nil {
+        return nil, err
+    }
+    
+    cfg := zap.NewProductionConfig()
+    cfg.Level = lvl
+    zl, err := cfg.Build()
+    if err != nil {
+        return nil, err
+    }
+    
+    return zl.Sugar(), nil
 }
