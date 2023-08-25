@@ -2,9 +2,9 @@ package serverapp
 
 import (
 	"net/http"
+	"log/slog"
 
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
-	"github.com/leonf08/metrics-yp.git/internal/logger"
 	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
@@ -20,8 +20,8 @@ func NewServer(st storage.Repository, cfg *serverconf.Config) *Server {
 	}
 }
 
-func (server Server) Run(h http.Handler, log logger.Logger) error {
-	log.Infoln("Running server", server.config.Addr)
+func (server Server) Run(h http.Handler) error {
+	slog.Info("Running server", "address", server.config.Addr)
 	return http.ListenAndServe(server.config.Addr, h)
 }
 

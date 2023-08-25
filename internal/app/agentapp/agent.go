@@ -1,15 +1,15 @@
 package agentapp
 
 import (
-	"io"
+	"bytes"
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"runtime"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
-	"github.com/leonf08/metrics-yp.git/internal/logger"
+	"github.com/leonf08/metrics-yp.git/internal/models"
 	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
@@ -27,8 +27,8 @@ func NewAgent(cl *http.Client, st storage.Repository, cfg *agentconf.Config) *Ag
 	}
 }
 
-func (a *Agent) Run(log logger.Logger) {
-	log.Infoln("Running agent")
+func (a *Agent) Run() {
+	slog.Info("Running agent")
 	m := new(runtime.MemStats)
 	request := "http://" + a.config.Addr + "/update"
 
@@ -47,54 +47,110 @@ func (a *Agent) Run(log logger.Logger) {
 
 		if currentTime.Sub(lastReportTime) >= time.Duration(a.config.ReportInt*int(time.Second)) {
 			lastReportTime = currentTime
-			sendMetric(a.client, a.storage, log, request)
+			sendMetricJSON(a.client, a.storage, request)
 		}
 
 		time.Sleep(time.Second)
 	}
 }
 
-func sendMetric(cl *http.Client, st storage.Repository, log logger.Logger, req string) {
-	var url string
+func sendMetricJSON(cl *http.Client, st storage.Repository, url string) {
 	metrics := st.ReadAll()
+
 	for name, value := range metrics {
+		metStruct := new(models.Metrics)
 		switch v := value.(type) {
 		case storage.GaugeMetric:
-			val := strconv.FormatFloat(float64(v), 'f', -1, 64)
-			url = strings.Join([]string{req, "gauge", name, val}, "/")
+			metStruct.ID = name
+			metStruct.MType = "gauge"
+			metStruct.Value = new(float64)
+			*metStruct.Value = float64(v)
 		case storage.CounterMetric:
-			val := strconv.FormatInt(int64(v), 10)
-			url = strings.Join([]string{req, "counter", name, val}, "/")
+			metStruct.ID = name
+			metStruct.MType = "counter"
+			metStruct.Delta = new(int64)
+			*metStruct.Delta = int64(v)
 		default:
-			log.Errorln("Invalid type of metric, got:", v)
+			slog.Error("Invalid type of metric, got:", v)
 			return
-		} 
+		}
+
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(&metStruct); err != nil {
+			slog.Error("Failed to create json", err)
+			return
+		}
+
+		req, err := http.NewRequest(http.MethodPost, url, &buf)
+		if err != nil {
+			slog.Error("Failed to create http request", err)
+			return
+		}
+
+		req.Header.Set("Content-Type", "application/json")
 		
-		sendRequest(cl, log, url)
-		time.Sleep(10*time.Millisecond)
+		slog.Info("Sending request",
+				"address", url,
+				"body", buf.String())
+		resp, err := cl.Do(req)
+		if err != nil {
+			slog.Error("Failed to send request", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if _, err = buf.ReadFrom(resp.Body); err != nil {
+			slog.Error("Failed to read response", err)
+			return
+		}
+
+		slog.Info("Response from the server:", 
+				"status", resp.Status,
+				"body", buf.String())
 	}
 }
 
-func sendRequest(cl *http.Client, log logger.Logger, url string) {
-	req, err := http.NewRequest(http.MethodPost, url, nil)
-	if err != nil {
-		log.Errorln(err)
-		return
-	}
+// func sendMetric(cl *http.Client, st storage.Repository, req string) {
+// 	var url string
+// 	metrics := st.ReadAll()
+// 	for name, value := range metrics {
+// 		switch v := value.(type) {
+// 		case storage.GaugeMetric:
+// 			val := strconv.FormatFloat(float64(v), 'f', -1, 64)
+// 			url = strings.Join([]string{req, "gauge", name, val}, "/")
+// 		case storage.CounterMetric:
+// 			val := strconv.FormatInt(int64(v), 10)
+// 			url = strings.Join([]string{req, "counter", name, val}, "/")
+// 		default:
+// 			slog.Error("Invalid type of metric, got:", v)
+// 			return
+// 		} 
+		
+// 		sendRequest(cl, url)
+// 		time.Sleep(10*time.Millisecond)
+// 	}
+// }
 
-	req.Header.Add("Content-Type", "text/plain")
+// func sendRequest(cl *http.Client, url string) {
+// 	req, err := http.NewRequest(http.MethodPost, url, nil)
+// 	if err != nil {
+// 		slog.Error("Failed to create request", err)
+// 		return
+// 	}
 
-	log.Infoln("Sending request", req.URL)
-	resp, err := cl.Do(req)
-	if err != nil {
-		log.Errorln(err)
-		return
-	}
+// 	req.Header.Add("Content-Type", "text/plain")
 
-	_, err = io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+// 	slog.Info("Sending request", req.URL)
+// 	resp, err := cl.Do(req)
+// 	if err != nil {
+// 		slog.Error("Failed to send request", err)
+// 		return
+// 	}
 
-	if err != nil {
-		log.Errorln(err)
-	}
-}
+// 	_, err = io.Copy(io.Discard, resp.Body)
+// 	resp.Body.Close()
+
+// 	if err != nil {
+// 		slog.Error("", err)
+// 	}
+// }

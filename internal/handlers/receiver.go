@@ -151,6 +151,8 @@ func GetMetricJSON(st storage.Repository) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -180,5 +182,7 @@ func UpdateMetricJSON(st storage.Repository) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		w.WriteHeader(http.StatusOK)
 	}
 }
