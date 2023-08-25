@@ -107,8 +107,8 @@ func DefaultHandler(st storage.Repository) http.HandlerFunc {
 
 func GetMetricJSON(st storage.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		metrics := new(models.Metrics)
-		if err := json.NewDecoder(r.Body).Decode(metrics); err != nil {
+		var metrics models.Metrics
+		if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -131,7 +131,6 @@ func GetMetricJSON(st storage.Repository) http.HandlerFunc {
 				http.Error(w, "Type assertion error", http.StatusInternalServerError)
 				return
 			}
-			metrics.Value = new(float64)
 			*metrics.Value = float64(val)
 		case "counter":
 			val, ok := v.(storage.CounterMetric)
@@ -139,7 +138,6 @@ func GetMetricJSON(st storage.Repository) http.HandlerFunc {
 				http.Error(w, "Type assertion error", http.StatusInternalServerError)
 				return
 			}
-			metrics.Delta = new(int64)
 			*metrics.Delta = int64(val)
 		default:
 			http.Error(w, "Bad request", http.StatusBadRequest)
@@ -147,19 +145,18 @@ func GetMetricJSON(st storage.Repository) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		if err = json.NewEncoder(w).Encode(metrics); err != nil {
+		if err = json.NewEncoder(w).Encode(&metrics); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
 		w.WriteHeader(http.StatusOK)
 	}
 }
 
 func UpdateMetricJSON(st storage.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		metrics := new(models.Metrics)
-		if err := json.NewDecoder(r.Body).Decode(metrics); err != nil {
+		var metrics models.Metrics
+		if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -182,7 +179,6 @@ func UpdateMetricJSON(st storage.Repository) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
 		w.WriteHeader(http.StatusOK)
 	}
 }

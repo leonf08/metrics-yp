@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
 	"io"
+	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
