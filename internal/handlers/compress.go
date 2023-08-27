@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"compress/gzip"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -10,7 +9,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var contentTypes = []string{"application/json", "text/html"}
+var contentTypes = []string{"application/json", "html/text"}
 
 type compressWriter struct {
 	w http.ResponseWriter
@@ -76,8 +75,7 @@ func CompressMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         ow := w
 
-        fmt.Println(r.Header.Get("Content-Type"))
-        if slices.Contains(contentTypes, r.Header.Get("Content-Type")) {
+        if slices.Contains(contentTypes, r.Header.Get("Accept")) {
             acceptEncoding := r.Header.Get("Accept-Encoding")
             supportsGzip := strings.Contains(acceptEncoding, "gzip")
             if supportsGzip {

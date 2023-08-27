@@ -100,7 +100,6 @@ func DefaultHandler(st storage.Repository) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
-
 		io.WriteString(w, s)
 	}
 }
