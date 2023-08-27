@@ -96,6 +96,7 @@ func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, u
 		}
 
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Content-Encoding", "gzip")
 		
 		log.Infoln("Sending request", "address", url)
