@@ -202,7 +202,7 @@ func TestDefaultHandler(t *testing.T) {
 			request: "/",
 			want: want{
 				code: http.StatusOK,
-				contentType: "text/plain; charset=utf-8",
+				contentType: "text/html",
 			},
 		},
 		{

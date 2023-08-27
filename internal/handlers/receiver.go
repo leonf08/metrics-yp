@@ -98,12 +98,7 @@ func DefaultHandler(st storage.Repository) http.HandlerFunc {
 			s += fmt.Sprintf("%s - %v\r\n", n, v)
 		}
 
-		if r.Header.Get("Accept-Encoding") == "gzip" {
-			w.Header().Set("Content-Type", "text/html")
-		} else {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		}
-		
+		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 
 		io.WriteString(w, s)
