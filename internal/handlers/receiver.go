@@ -42,7 +42,7 @@ func GetMetric(st storage.Repository) http.HandlerFunc {
 			return
 		}
 		
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, vStr)
 	}
@@ -81,7 +81,7 @@ func UpdateMetric(st storage.Repository) http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")		
+		w.Header().Set("Content-Type", "text/html")		
 		w.WriteHeader(http.StatusOK)
 	}
 }
@@ -93,13 +93,13 @@ func DefaultHandler(st storage.Repository) http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-
 		s := "Metric name - value\r\n"
 		for n, v := range st.ReadAll() {
 			s += fmt.Sprintf("%s - %v\r\n", n, v)
 		}
+
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
 
 		io.WriteString(w, s)
 	}
@@ -147,12 +147,11 @@ func GetMetricJSON(st storage.Repository) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 		if err = json.NewEncoder(w).Encode(metrics); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		w.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -176,13 +175,12 @@ func UpdateMetricJSON(st storage.Repository) http.HandlerFunc {
 		}
 
 		st.SetVal(metrics.ID, v)
-
+		
 		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(w).Encode(&metrics); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		w.WriteHeader(http.StatusOK)
 	}
 }

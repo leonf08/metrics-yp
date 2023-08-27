@@ -2,10 +2,11 @@ package agentapp
 
 import (
 	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"net/http"
 	"runtime"
 	"time"
-	"encoding/json"
 
 	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
 	"github.com/leonf08/metrics-yp.git/internal/logger"
@@ -55,6 +56,8 @@ func (a *Agent) Run(log logger.Logger) {
 }
 
 func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, url string) {
+	var buf bytes.Buffer
+
 	metrics := st.ReadAll()
 
 	for name, value := range metrics {
@@ -74,10 +77,15 @@ func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, u
 			log.Errorln("Invalid type of metric, got:", v)
 			return
 		}
-
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(&metStruct); err != nil {
+		
+		gzWriter := gzip.NewWriter(&buf)
+		if err := json.NewEncoder(gzWriter).Encode(&metStruct); err != nil {
 			log.Errorln("Failed to create json", err)
+			return
+		}
+
+		if err := gzWriter.Close(); err != nil {
+			log.Errorln(err)
 			return
 		}
 
@@ -88,10 +96,9 @@ func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, u
 		}
 
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Encoding", "gzip")
 		
-		log.Infoln("Sending request",
-				"address", url,
-				"body", buf.String())
+		log.Infoln("Sending request", "address", url)
 		resp, err := cl.Do(req)
 		if err != nil {
 			log.Errorln("Failed to send request", err)
@@ -104,9 +111,10 @@ func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, u
 			return
 		}
 
-		log.Infoln("Response from the server", 
-				"status", resp.Status,
+		log.Infoln("Response from the server", "status", resp.Status,
 				"body", buf.String())
+
+		buf.Reset()
 	}
 }
 

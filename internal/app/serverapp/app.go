@@ -30,7 +30,6 @@ func StartApp() error {
 	}
 
 	storage := storage.NewStorage()
-
 	router := chi.NewRouter()
 	router.Get("/", handlers.DefaultHandler(storage))
 	router.Post("/", handlers.DefaultHandler(storage))
@@ -44,9 +43,9 @@ func StartApp() error {
 	})
 
 	server := NewServer(storage, cfg)
-	fn := logger.LoggingMiddleware(log)
+	logging := logger.LoggingMiddleware(log)
 
-	return server.Run(fn(router), log)
+	return server.Run(logging(handlers.CompressMiddleware(router)), log)
 }
 
 func initLogger() (logger.Logger, error) {

@@ -15,7 +15,6 @@ type (
 	responseData struct {
 		status int
 		size int
-		body string
 	}
 
 	loggingResponse struct {
@@ -30,7 +29,6 @@ type (
 
 func (l *loggingResponse) Write(b []byte) (int, error) {
     size, err := l.ResponseWriter.Write(b)
-	l.responseData.body = string(b)
     l.responseData.size += size
     return size, err
 }
@@ -63,7 +61,6 @@ func LoggingMiddleware(log Logger) func(http.Handler) http.Handler {
 
 			log.Infoln("Response",
 					"status", lw.responseData.status,
-					"body", lw.responseData.body,
 					"size", lw.responseData.size)
 		}
 
