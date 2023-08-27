@@ -42,7 +42,7 @@ func GetMetric(st storage.Repository) http.HandlerFunc {
 			return
 		}
 		
-		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, vStr)
 	}
@@ -81,7 +81,7 @@ func UpdateMetric(st storage.Repository) http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/html")		
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")		
 		w.WriteHeader(http.StatusOK)
 	}
 }
@@ -98,7 +98,7 @@ func DefaultHandler(st storage.Repository) http.HandlerFunc {
 			s += fmt.Sprintf("%s - %v\r\n", n, v)
 		}
 
-		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 
 		io.WriteString(w, s)

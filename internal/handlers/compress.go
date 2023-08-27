@@ -40,8 +40,8 @@ func (cw *compressWriter) Header() http.Header {
 	return cw.w.Header()
 }
 
-func (c *compressWriter) Close() error {
-    return c.gzw.Close()
+func (cw *compressWriter) Close() error {
+    return cw.gzw.Close()
 }
 
 type compressReader struct {
@@ -61,15 +61,15 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	}, nil
 }
 
-func (c compressReader) Read(p []byte) (n int, err error) {
-    return c.gzr.Read(p)
+func (cr compressReader) Read(p []byte) (n int, err error) {
+    return cr.gzr.Read(p)
 }
 
-func (c *compressReader) Close() error {
-    if err := c.r.Close(); err != nil {
+func (cr *compressReader) Close() error {
+    if err := cr.r.Close(); err != nil {
         return err
     }
-    return c.gzr.Close()
+    return cr.gzr.Close()
 }
 
 func CompressMiddleware(h http.Handler) http.Handler {
