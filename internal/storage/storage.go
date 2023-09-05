@@ -19,18 +19,18 @@ type CounterMetric int64
 
 type MemStorage struct {
 	counter CounterMetric
-	storage map[string]interface{}
+	Storage map[string]interface{} `json:"metrics"`
 }
 
 func NewStorage() *MemStorage {
 	return &MemStorage{
-		storage: make(map[string]interface{}),
+		Storage: make(map[string]interface{}),
 	}
 }
 
 func (st *MemStorage) Update(v interface{}) {
 	if m, ok := v.(*runtime.MemStats); ok {
-		st.storage = map[string]interface{} {
+		st.Storage = map[string]interface{} {
 			"Alloc": GaugeMetric(m.Alloc),
 			"BuckHashSys": GaugeMetric(m.BuckHashSys),
 			"Frees": GaugeMetric(m.Frees),
@@ -62,21 +62,21 @@ func (st *MemStorage) Update(v interface{}) {
 	}
 
 	val := rand.Float64()
-	st.storage["RandomValue"] = GaugeMetric(val)
+	st.Storage["RandomValue"] = GaugeMetric(val)
 	
 	st.counter++
-	st.storage["PollCount"] = st.counter
+	st.Storage["PollCount"] = st.counter
 }
 
 func (st *MemStorage) SetVal(k string, v interface{}) error {
 	switch val := v.(type) {
 	case float64:
-		st.storage[k] = GaugeMetric(val)
+		st.Storage[k] = GaugeMetric(val)
 	case int64:
-		if cv := st.storage[k]; cv != nil {
-			st.storage[k] = CounterMetric(val) + cv.(CounterMetric)
+		if cv := st.Storage[k]; cv != nil {
+			st.Storage[k] = CounterMetric(val) + cv.(CounterMetric)
 		} else {
-			st.storage[k] = CounterMetric(val)
+			st.Storage[k] = CounterMetric(val)
 		}
 	default:
 		return errors.New("incorrect type of value")
@@ -86,7 +86,7 @@ func (st *MemStorage) SetVal(k string, v interface{}) error {
 }
 
 func (st *MemStorage) GetVal(k string) (interface{}, error) {
-	v, ok := st.storage[k]
+	v, ok := st.Storage[k]
 	if !ok {
 		return nil, fmt.Errorf("metric %s not found", k)
 	}
@@ -95,5 +95,5 @@ func (st *MemStorage) GetVal(k string) (interface{}, error) {
 }
 
 func (st *MemStorage) ReadAll() map[string]interface{} {
-	return st.storage
+	return st.Storage
 }
