@@ -2,84 +2,104 @@ package serverapp
 
 import (
 	"flag"
-	"net/http"
-	"time"
 	"os"
+	"os/signal"
+	"time"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/go-chi/chi/v5"
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
-	"github.com/leonf08/metrics-yp.git/internal/handlers"
 	"github.com/leonf08/metrics-yp.git/internal/logger"
 	"github.com/leonf08/metrics-yp.git/internal/storage"
 	"go.uber.org/zap"
 )
 
 func StartApp() error {
-	l, err := initLogger()
-	if err != nil {
-		return err
-	}
-	log := logger.NewLogger(l)
-
-	config, err := processFlagsEnv()
+	server, err := initServer()
 	if err != nil {
 		return err
 	}
 
-	metricsSaver, err := NewSaver(config.FileStoragePath)
-	if err != nil {
-		return err
-	}
-	defer metricsSaver.Close()
+	defer server.saver.Close()
+	defer server.loader.Close()
 
-	metricsLoader, err := NewLoader(config.FileStoragePath)
-	if err != nil {
-		return err
-	}
-	defer metricsLoader.Close()
+	router := chi.NewRouter()
+	router.Get("/", server.DefaultHandler())
+	router.Post("/", server.DefaultHandler())
+	router.Route("/value", func(r chi.Router) {
+		r.Get("/{type}/{name}", server.GetMetricHandler())
+		r.Post("/", server.GetMetricJSONHandler())
+	})
+	router.Route("/update", func(r chi.Router) {
+		r.Post("/", server.UpdateMetricJSONHandler())
+		r.Post("/{type}/{name}/{val}", server.UpdateMetricHandler())
+	})
 
-	repo := storage.NewStorage()
-	router := createRouter(repo)
+	logMw := server.LoggingMiddleware()
+	handler := logMw(server.CompressMiddleware()(router))
 
-	logging := logger.LoggingMiddleware(log)
-	handler :=  logging(handlers.CompressMiddleware(router))
-
-	s := &http.Server{
-		Addr: config.Addr,
-		Handler: handler,
-	}
-
-	if config.FileStoragePath != "" {
-		if config.Restore {
-			m, err := metricsLoader.Load()
+	if server.config.FileStoragePath != "" {
+		if server.config.Restore {
+			m, err := server.loader.LoadMetrics()
 			if err != nil {
 				return err
 			}
 	
-			repo = m
+			for k, v := range m.Storage {
+				if err := server.storage.SetVal(k, v); err != nil {
+					return err
+				}
+			}
 		}
 
-		timer := time.NewTicker(time.Duration(config.StoreInt)*time.Second)
+		timer := time.NewTicker(time.Duration(server.config.StoreInt)*time.Second)
 		defer timer.Stop()
 
 		shutdown := make(chan os.Signal, 1)
+		signal.Notify(shutdown, os.Interrupt)
 		go func() {
 			for {
 				select {
 				case <- timer.C:
-					log.Infoln("Save current metrics")
-					metricsSaver.SaveMetrics(repo)
+					server.logger.Infoln("Save current metrics")
+					server.saver.SaveMetrics()
 				case <- shutdown:
-					log.Infoln("Save current metrics and shut down the server")
-					metricsSaver.SaveMetrics(repo)
-					return
+					server.logger.Infoln("Save current metrics and shut down the server")
+					server.saver.SaveMetrics()
+					os.Exit(0)
 				}
 			}
 		}()
 	}
 
-	return s.ListenAndServe()
+	return server.Run(handler)
+}
+
+func initServer() (*Server, error) {
+	l, err := initLogger()
+	if err != nil {
+		return nil, err
+	}
+	log := logger.NewLogger(l)
+
+	config, err := processFlagsEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	storage := storage.NewStorage()
+
+	metricsSaver, err := NewSaver(config.FileStoragePath, storage)
+	if err != nil {
+		return nil, err
+	}
+
+	metricsLoader, err := NewLoader(config.FileStoragePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewServer(storage, config, metricsSaver, metricsLoader, log), nil
 }
 
 func initLogger() (logger.Logger, error) {
@@ -100,9 +120,9 @@ func initLogger() (logger.Logger, error) {
 
 func processFlagsEnv() (*serverconf.Config, error) {
 	address := flag.String("a", ":8080", "Host address of the server")
-	storeInt := flag.Int("i", 10, "Store interval for the metrics")
-	filePath := flag.String("f", "tmp/metrics-db.json", "Path to file for metrics storage")
-	restore := flag.Bool("r", true, "Load previously save metrics at the server start")
+	storeInt := flag.Int("i", 300, "Store interval for the metrics")
+	filePath := flag.String("f", "/tmp/metrics-db.json", "Path to file for metrics storage")
+	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")
 	flag.Parse()
 
 	cfg := serverconf.NewConfig(*storeInt, *address, *filePath, *restore)
@@ -111,20 +131,4 @@ func processFlagsEnv() (*serverconf.Config, error) {
 	}
 	
 	return cfg, nil
-}
-
-func createRouter(st storage.Repository) *chi.Mux {
-	router := chi.NewRouter()
-	router.Get("/", handlers.DefaultHandler(st))
-	router.Post("/", handlers.DefaultHandler(st))
-	router.Route("/value", func(r chi.Router) {
-		r.Get("/{type}/{name}", handlers.GetMetric(st))
-		r.Post("/", handlers.GetMetricJSON(st))
-	})
-	router.Route("/update", func(r chi.Router) {
-		r.Post("/", handlers.UpdateMetricJSON(st))
-		r.Post("/{type}/{name}/{val}", handlers.UpdateMetric(st))
-	})
-
-	return router
 }

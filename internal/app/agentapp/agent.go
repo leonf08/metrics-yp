@@ -63,16 +63,16 @@ func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, u
 	for name, value := range metrics {
 		metStruct := new(models.Metrics)
 		switch v := value.(type) {
-		case storage.GaugeMetric:
+		case float64:
 			metStruct.ID = name
 			metStruct.MType = "gauge"
 			metStruct.Value = new(float64)
-			*metStruct.Value = float64(v)
-		case storage.CounterMetric:
+			*metStruct.Value = v
+		case int64:
 			metStruct.ID = name
 			metStruct.MType = "counter"
 			metStruct.Delta = new(int64)
-			*metStruct.Delta = int64(v)
+			*metStruct.Delta = v
 		default:
 			log.Errorln("Invalid type of metric, got:", v)
 			return

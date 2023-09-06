@@ -11,6 +11,7 @@ import (
 type Saver struct {
 	file *os.File
 	encoder *json.Encoder
+	storage *storage.MemStorage
 }
 
 type Loader struct {
@@ -18,7 +19,7 @@ type Loader struct {
 	decoder *json.Decoder
 }
 
-func NewSaver(path string) (*Saver, error) {
+func NewSaver(path string, st *storage.MemStorage) (*Saver, error) {
 	if path == "" {
 		return &Saver{}, nil
 	}
@@ -28,7 +29,7 @@ func NewSaver(path string) (*Saver, error) {
 		return nil, err
 	}
 	
-	file, err := os.Create(path)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
 	}
@@ -36,11 +37,24 @@ func NewSaver(path string) (*Saver, error) {
 	return &Saver{
 		file: file,
 		encoder: json.NewEncoder(file),
+		storage: st,
 	}, nil
 }
 
-func (s *Saver) SaveMetrics(m *storage.MemStorage) error {
-	return s.encoder.Encode(m)
+func (s *Saver) SaveMetrics() error {
+	err := s.file.Truncate(0)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.file.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+
+	s.encoder.SetIndent("", "    ")
+	
+	return s.encoder.Encode(s.storage)
 }
 
 func (s *Saver) Close() error {
@@ -52,7 +66,7 @@ func NewLoader(path string) (*Loader, error) {
 		return &Loader{}, nil
 	}
 
-	file, err := os.OpenFile(path, os.O_RDONLY, 0666)
+	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
 	}
@@ -63,8 +77,8 @@ func NewLoader(path string) (*Loader, error) {
 	}, nil
 }
 
-func (l *Loader) Load() (*storage.MemStorage, error) {
-	m := &storage.MemStorage{}
+func (l *Loader) LoadMetrics() (*storage.MemStorage, error) {
+	m := storage.NewStorage()
 
 	info, err := l.file.Stat()
 	if err != nil {

@@ -71,7 +71,7 @@ func (cr *compressReader) Close() error {
     return cr.gzr.Close()
 }
 
-func CompressMiddleware(h http.Handler) http.Handler {
+func Compress(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         ow := w
 

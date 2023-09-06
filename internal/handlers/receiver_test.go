@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/leonf08/metrics-yp.git/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +21,7 @@ type want struct {
 }
 
 type MockStorage struct {
-	counter storage.CounterMetric
+	counter int64
 	storage map[string]interface{}
 }
 
@@ -46,9 +45,9 @@ func (m *MockStorage) GetVal(k string) (interface{}, error) {
 func (m *MockStorage) SetVal(k string, v interface{}) error {
 	switch val := v.(type) {
 	case float64:
-		m.storage[k] = storage.GaugeMetric(val)
+		m.storage[k] = val
 	case int64:
-		m.storage[k] = storage.CounterMetric(val)
+		m.storage[k] = val
 	default:
 		return errors.New("Incorrect type of value")
 	}
@@ -59,8 +58,8 @@ func (m *MockStorage) SetVal(k string, v interface{}) error {
 func TestGetMetric(t *testing.T) {
 	storage := &MockStorage{
 		storage: map[string]interface{}{
-			"Metric1": storage.GaugeMetric(2.5),
-			"Metric2": storage.CounterMetric(3),
+			"Metric1": 2.5,
+			"Metric2": 3,
 		},
 	}
 	
@@ -227,8 +226,8 @@ func TestDefaultHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
-			route.Get("/", DefaultHandler(storage))
-			route.Post("/", DefaultHandler(storage))
+			route.Get("/", Default(storage))
+			route.Post("/", Default(storage))
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -248,8 +247,8 @@ func TestDefaultHandler(t *testing.T) {
 func TestGetMetricJSON(t *testing.T) {
 	storage := &MockStorage{
 		storage: map[string]interface{}{
-			"Metric1": storage.GaugeMetric(2.5),
-			"Metric2": storage.CounterMetric(3),
+			"Metric1": 2.5,
+			"Metric2": 3,
 		},
 	}
 	

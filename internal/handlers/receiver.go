@@ -26,7 +26,7 @@ func GetMetric(st storage.Repository) http.HandlerFunc {
 				return
 			}
 
-			v := val.(storage.GaugeMetric)
+			v := val.(float64)
 			vStr = strconv.FormatFloat(float64(v), 'f', -1, 64)
 		case "counter":
 			val, err := st.GetVal(name)
@@ -35,7 +35,7 @@ func GetMetric(st storage.Repository) http.HandlerFunc {
 				return
 			}
 
-			v := val.(storage.CounterMetric)
+			v := val.(int64)
 			vStr = strconv.FormatInt(int64(v), 10)
 		default:
 			http.Error(w, "Bad request", http.StatusBadRequest)
@@ -86,7 +86,7 @@ func UpdateMetric(st storage.Repository) http.HandlerFunc {
 	}
 }
 
-func DefaultHandler(st storage.Repository) http.HandlerFunc {
+func Default(st storage.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			http.Error(w, "Bad request", http.StatusBadRequest)
@@ -125,7 +125,7 @@ func GetMetricJSON(st storage.Repository) http.HandlerFunc {
 
 		switch metrics.MType {
 		case "gauge":
-			val, ok := v.(storage.GaugeMetric)
+			val, ok := v.(float64)
 			if !ok {
 				http.Error(w, "Type assertion error", http.StatusInternalServerError)
 				return
@@ -133,7 +133,7 @@ func GetMetricJSON(st storage.Repository) http.HandlerFunc {
 			metrics.Value = new(float64)
 			*metrics.Value = float64(val)
 		case "counter":
-			val, ok := v.(storage.CounterMetric)
+			val, ok := v.(int64)
 			if !ok {
 				http.Error(w, "Type assertion error", http.StatusInternalServerError)
 				return
