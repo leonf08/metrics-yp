@@ -58,8 +58,8 @@ func (m *MockStorage) SetVal(k string, v interface{}) error {
 func TestGetMetric(t *testing.T) {
 	storage := &MockStorage{
 		storage: map[string]interface{}{
-			"Metric1": 2.5,
-			"Metric2": 3,
+			"Metric1": float64(2.5),
+			"Metric2": int64(3),
 		},
 	}
 	
@@ -247,8 +247,8 @@ func TestDefaultHandler(t *testing.T) {
 func TestGetMetricJSON(t *testing.T) {
 	storage := &MockStorage{
 		storage: map[string]interface{}{
-			"Metric1": 2.5,
-			"Metric2": 3,
+			"Metric1": float64(2.5),
+			"Metric2": int64(3),
 		},
 	}
 	
