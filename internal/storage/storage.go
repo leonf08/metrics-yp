@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -15,8 +16,13 @@ type Repository interface {
 }
 
 type MemStorage struct {
-	counter int64
-	Storage map[string]interface{} `json:"metrics"`
+	counter int64					`json:"-"`
+	Storage map[string]interface{} 	`json:"metrics"`
+}
+
+type Metric struct {
+	Type string 	`json:"type"`
+	Val interface{} `json:"value"`
 }
 
 func NewStorage() *MemStorage {
@@ -28,64 +34,69 @@ func NewStorage() *MemStorage {
 func (st *MemStorage) Update(v interface{}) {
 	if m, ok := v.(*runtime.MemStats); ok {
 		st.Storage = map[string]interface{}{
-			"Alloc":         float64(m.Alloc),
-			"BuckHashSys":   float64(m.BuckHashSys),
-			"Frees":         float64(m.Frees),
-			"GCCPUFraction": float64(m.GCCPUFraction),
-			"GCSys":         float64(m.GCSys),
-			"HeapAlloc":     float64(m.HeapAlloc),
-			"HeapIdle":      float64(m.HeapIdle),
-			"HeapInuse":     float64(m.HeapInuse),
-			"HeapObjects":   float64(m.HeapObjects),
-			"HeapReleased":  float64(m.HeapReleased),
-			"HeapSys":       float64(m.HeapSys),
-			"LastGC":        float64(m.LastGC),
-			"Lookups":       float64(m.Lookups),
-			"MCacheInuse":   float64(m.MCacheInuse),
-			"MCacheSys":     float64(m.MCacheSys),
-			"MSpanInuse":    float64(m.MSpanInuse),
-			"MSpanSys":      float64(m.MSpanSys),
-			"Mallocs":       float64(m.Mallocs),
-			"NextGC":        float64(m.NextGC),
-			"NumForcedGC":   float64(m.NumForcedGC),
-			"NumGC":         float64(m.NumGC),
-			"OtherSys":      float64(m.OtherSys),
-			"PauseTotalNs":  float64(m.PauseTotalNs),
-			"StackInuse":    float64(m.StackInuse),
-			"StackSys":      float64(m.StackSys),
-			"Sys":           float64(m.Sys),
-			"TotalAlloc":    float64(m.TotalAlloc),
+			"Alloc":         Metric{Type: "gauge", Val: float64(m.Alloc)},
+			"BuckHashSys":   Metric{Type: "gauge", Val: float64(m.BuckHashSys)},
+			"Frees":         Metric{Type: "gauge", Val: float64(m.Frees)},
+			"GCCPUFraction": Metric{Type: "gauge", Val: float64(m.GCCPUFraction)},
+			"GCSys":         Metric{Type: "gauge", Val: float64(m.GCSys)},
+			"HeapAlloc":     Metric{Type: "gauge", Val: float64(m.HeapAlloc)},
+			"HeapIdle":      Metric{Type: "gauge", Val: float64(m.HeapIdle)},
+			"HeapInuse":     Metric{Type: "gauge", Val: float64(m.HeapInuse)},
+			"HeapObjects":   Metric{Type: "gauge", Val: float64(m.HeapObjects)},
+			"HeapReleased":  Metric{Type: "gauge", Val: float64(m.HeapReleased)},
+			"HeapSys":       Metric{Type: "gauge", Val: float64(m.HeapSys)},
+			"LastGC":        Metric{Type: "gauge", Val: float64(m.LastGC)},
+			"Lookups":       Metric{Type: "gauge", Val: float64(m.Lookups)},
+			"MCacheInuse":   Metric{Type: "gauge", Val: float64(m.MCacheInuse)},
+			"MCacheSys":     Metric{Type: "gauge", Val: float64(m.MCacheSys)},
+			"MSpanInuse":    Metric{Type: "gauge", Val: float64(m.MSpanInuse)},
+			"MSpanSys":      Metric{Type: "gauge", Val: float64(m.MSpanSys)},
+			"Mallocs":       Metric{Type: "gauge", Val: float64(m.Mallocs)},
+			"NextGC":        Metric{Type: "gauge", Val: float64(m.NextGC)},
+			"NumForcedGC":   Metric{Type: "gauge", Val: float64(m.NumForcedGC)},
+			"NumGC":         Metric{Type: "gauge", Val: float64(m.NumGC)},
+			"OtherSys":      Metric{Type: "gauge", Val: float64(m.OtherSys)},
+			"PauseTotalNs":  Metric{Type: "gauge", Val: float64(m.PauseTotalNs)},
+			"StackInuse":    Metric{Type: "gauge", Val: float64(m.StackInuse)},
+			"StackSys":      Metric{Type: "gauge", Val: float64(m.StackSys)},
+			"Sys":           Metric{Type: "gauge", Val: float64(m.Sys)},
+			"TotalAlloc":    Metric{Type: "gauge", Val: float64(m.TotalAlloc)},
 		}
 	}
 
 	val := rand.Float64()
-	st.Storage["RandomValue"] = val
+	st.Storage["RandomValue"] = Metric{Type: "gauge", Val: val}
 
 	st.counter++
-	st.Storage["PollCount"] = st.counter
+	st.Storage["PollCount"] = Metric{Type: "counter", Val: st.counter}
 }
 
 func (st *MemStorage) SetVal(k string, v interface{}) error {
 	switch val := v.(type) {
 	case float64:
-		st.Storage[k] = val
+		st.Storage[k] = Metric{Type: "gauge", Val: val}
 	case int64:
 		_, ok := st.Storage[k]
 		if !ok {
-			st.Storage[k] = val
+			st.Storage[k] = Metric{Type: "counter", Val: val}
 			break
 		}
 
-		_, ok = st.Storage[k].(int64)
+		m, ok := st.Storage[k].(Metric)
 		if !ok {
-			cv := st.Storage[k].(float64)
-			st.Storage[k] = int64(cv) + val
-			break
+			return errors.New("Failed type assertion")
 		}
-		
-		st.Storage[k] = st.Storage[k].(int64) + val
+
+		c, ok := m.Val.(int64)
+		if !ok {
+			return errors.New("Failed type assertion")
+		}
+
+		st.Storage[k] = Metric{Type: "counter", Val: c + val}
+	case Metric:
+		st.Storage[k] = val
 	default:
-		return errors.New("incorrect type of value")
+		return errors.New("Incorrect type of value")
 	}
 
 	return nil
@@ -94,7 +105,7 @@ func (st *MemStorage) SetVal(k string, v interface{}) error {
 func (st *MemStorage) GetVal(k string) (interface{}, error) {
 	v, ok := st.Storage[k]
 	if !ok {
-		return nil, fmt.Errorf("metric %s not found", k)
+		return Metric{}, fmt.Errorf("metric %s not found", k)
 	}
 
 	return v, nil
@@ -102,4 +113,27 @@ func (st *MemStorage) GetVal(k string) (interface{}, error) {
 
 func (st *MemStorage) ReadAll() map[string]interface{} {
 	return st.Storage
+}
+
+func (st *MemStorage) UnmarshalJSON(data []byte) error {
+	var s map[string]map[string]Metric
+
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	for k, v := range s["metrics"] {
+		if v.Type == "counter" {
+			val, ok := v.Val.(float64)
+			if !ok {
+				return errors.New("Failed type assertion")
+			}
+
+			st.Storage[k] = Metric{Type: v.Type, Val: int64(val)}
+		} else {
+			st.Storage[k] = v
+		}
+	}
+
+	return nil
 }

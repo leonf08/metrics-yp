@@ -9,22 +9,22 @@ import (
 	"time"
 
 	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
-	"github.com/leonf08/metrics-yp.git/internal/logger"
 	"github.com/leonf08/metrics-yp.git/internal/models"
+	"github.com/leonf08/metrics-yp.git/internal/server/logger"
 	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
 type Agent struct {
-	client *http.Client
+	client  *http.Client
 	storage storage.Repository
-	config *agentconf.Config
+	config  *agentconf.Config
 }
 
 func NewAgent(cl *http.Client, st storage.Repository, cfg *agentconf.Config) *Agent {
 	return &Agent{
-		client: cl,
+		client:  cl,
 		storage: st,
-		config: cfg,
+		config:  cfg,
 	}
 }
 
@@ -35,7 +35,7 @@ func (a *Agent) Run(log logger.Logger) {
 
 	lastPollTime := time.Now()
 	lastReportTime := time.Now()
-	
+
 	for {
 		currentTime := time.Now()
 
@@ -43,7 +43,7 @@ func (a *Agent) Run(log logger.Logger) {
 			lastPollTime = currentTime
 
 			runtime.ReadMemStats(m)
-			a.storage.Update(m)	
+			a.storage.Update(m)
 		}
 
 		if currentTime.Sub(lastReportTime) >= time.Duration(a.config.ReportInt*int(time.Second)) {
@@ -62,7 +62,13 @@ func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, u
 
 	for name, value := range metrics {
 		metStruct := new(models.Metrics)
-		switch v := value.(type) {
+		m, ok := value.(storage.Metric)
+		if !ok {
+			log.Errorln("Invalid type")
+			return
+		}
+
+		switch v := m.Val.(type) {
 		case float64:
 			metStruct.ID = name
 			metStruct.MType = "gauge"
@@ -77,7 +83,7 @@ func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, u
 			log.Errorln("Invalid type of metric, got:", v)
 			return
 		}
-		
+
 		gzWriter := gzip.NewWriter(&buf)
 		if err := json.NewEncoder(gzWriter).Encode(&metStruct); err != nil {
 			log.Errorln("Failed to create json", err)
@@ -98,7 +104,7 @@ func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, u
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Content-Encoding", "gzip")
-		
+
 		log.Infoln("Sending request", "address", url)
 		resp, err := cl.Do(req)
 		if err != nil {
@@ -113,7 +119,7 @@ func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, u
 		}
 
 		log.Infoln("Response from the server", "status", resp.Status,
-				"body", buf.String())
+			"body", buf.String())
 
 		buf.Reset()
 	}
@@ -133,8 +139,8 @@ func sendMetricJSON(cl *http.Client, st storage.Repository, log logger.Logger, u
 // 		default:
 // 			log.Errorln("Invalid type of metric, got:", v)
 // 			return
-// 		} 
-		
+// 		}
+
 // 		sendRequest(cl, log, url)
 // 	}
 // }

@@ -1,10 +1,10 @@
-package handlers
+package httpserver
 
 import (
-	"errors"
-	"io"
-	"fmt"
 	"bytes"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,9 +15,9 @@ import (
 )
 
 type want struct {
-	code int
+	code        int
 	contentType string
-	body string
+	body        string
 }
 
 type MockStorage struct {
@@ -26,7 +26,7 @@ type MockStorage struct {
 }
 
 func (m *MockStorage) Update(v interface{}) {
-	
+
 }
 
 func (m *MockStorage) ReadAll() map[string]interface{} {
@@ -62,53 +62,56 @@ func TestGetMetric(t *testing.T) {
 			"Metric2": int64(3),
 		},
 	}
-	
+
 	tests := []struct {
-		name string
+		name    string
 		request string
-		want want
+		want    want
 	}{
 		{
-			name: "test 1, get Metric1",
+			name:    "test 1, get Metric1",
 			request: "/value/gauge/Metric1",
 			want: want{
-				code: http.StatusOK,
+				code:        http.StatusOK,
 				contentType: "text/plain; charset=utf-8",
-				body: "2.5",
+				body:        "2.5",
 			},
 		},
 		{
-			name: "test 2, get Metric2",
+			name:    "test 2, get Metric2",
 			request: "/value/counter/Metric2",
 			want: want{
-				code: http.StatusOK,
+				code:        http.StatusOK,
 				contentType: "text/plain; charset=utf-8",
-				body: "3",
+				body:        "3",
 			},
 		},
 		{
-			name: "test 3, get unknown Metric3",
+			name:    "test 3, get unknown Metric3",
 			request: "/value/gauge/Metric3",
 			want: want{
-				code: http.StatusNotFound,
+				code:        http.StatusNotFound,
 				contentType: "text/plain; charset=utf-8",
-				body: "metric Metric3 not found\n",
+				body:        "metric Metric3 not found\n",
 			},
 		},
 		{
-			name: "test 4, get unknown Metric4",
+			name:    "test 4, get unknown Metric4",
 			request: "/value/counter/Metric4",
 			want: want{
-				code: http.StatusNotFound,
+				code:        http.StatusNotFound,
 				contentType: "text/plain; charset=utf-8",
-				body: "metric Metric4 not found\n",
+				body:        "metric Metric4 not found\n",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
-			route.Get("/value/{type}/{name}", GetMetric(storage))
+			server := &Server{
+				Storage: storage,
+			}
+			route.Get("/value/{type}/{name}", server.GetMetric)
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -116,7 +119,7 @@ func TestGetMetric(t *testing.T) {
 			require.NoError(t, err)
 			resp, err := s.Client().Do(r)
 			require.NoError(t, err)
-			
+
 			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
@@ -133,33 +136,33 @@ func TestUpdateMetric(t *testing.T) {
 	storage := &MockStorage{
 		storage: map[string]interface{}{},
 	}
-	
+
 	tests := []struct {
-		name string
+		name    string
 		request string
-		want want
+		want    want
 	}{
 		{
-			name: "test 1, update Metric1",
+			name:    "test 1, update Metric1",
 			request: "/update/gauge/Metric1/234.324",
 			want: want{
-				code: http.StatusOK,
+				code:        http.StatusOK,
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
 		{
-			name: "test 2, update Metric2",
+			name:    "test 2, update Metric2",
 			request: "/update/counter/Metric2/213",
 			want: want{
-				code: http.StatusOK,
+				code:        http.StatusOK,
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
 		{
-			name: "test 3, bad request",
+			name:    "test 3, bad request",
 			request: "/update/someType/Metric3/34",
 			want: want{
-				code: http.StatusBadRequest,
+				code:        http.StatusBadRequest,
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -167,7 +170,10 @@ func TestUpdateMetric(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
-			route.Post("/update/{type}/{name}/{val}", UpdateMetric(storage))
+			server := &Server{
+				Storage: storage,
+			}
+			route.Post("/update/{type}/{name}/{val}", server.UpdateMetric)
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -175,7 +181,7 @@ func TestUpdateMetric(t *testing.T) {
 			require.NoError(t, err)
 			resp, err := s.Client().Do(r)
 			require.NoError(t, err)
-			
+
 			defer resp.Body.Close()
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
@@ -188,37 +194,37 @@ func TestDefaultHandler(t *testing.T) {
 	storage := &MockStorage{
 		storage: map[string]interface{}{},
 	}
-	
+
 	tests := []struct {
-		name string
-		method string
+		name    string
+		method  string
 		request string
-		want want
+		want    want
 	}{
 		{
-			name: "test 1, get all metrics",
-			method: http.MethodGet,
+			name:    "test 1, get all metrics",
+			method:  http.MethodGet,
 			request: "/",
 			want: want{
-				code: http.StatusOK,
+				code:        http.StatusOK,
 				contentType: "text/html",
 			},
 		},
 		{
-			name: "test 2, bad request",
-			method: http.MethodPost,
+			name:    "test 2, bad request",
+			method:  http.MethodPost,
 			request: "/",
 			want: want{
-				code: http.StatusBadRequest,
+				code:        http.StatusBadRequest,
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
 		{
-			name: "test 3, page not found",
-			method: http.MethodPost,
+			name:    "test 3, page not found",
+			method:  http.MethodPost,
 			request: "/update",
 			want: want{
-				code: http.StatusNotFound,
+				code:        http.StatusNotFound,
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -226,8 +232,11 @@ func TestDefaultHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
-			route.Get("/", Default(storage))
-			route.Post("/", Default(storage))
+			server := &Server{
+				Storage: storage,
+			}
+			route.Get("/", server.Default)
+			route.Post("/", server.Default)
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -235,7 +244,7 @@ func TestDefaultHandler(t *testing.T) {
 			require.NoError(t, err)
 			resp, err := s.Client().Do(r)
 			require.NoError(t, err)
-			
+
 			defer resp.Body.Close()
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
@@ -251,53 +260,56 @@ func TestGetMetricJSON(t *testing.T) {
 			"Metric2": int64(3),
 		},
 	}
-	
+
 	tests := []struct {
-		name string
-		method string
+		name    string
+		method  string
 		request string
-		body string
-		want want
+		body    string
+		want    want
 	}{
 		{
-			name: "test 1, get Metric1",
-			method: http.MethodPost,
+			name:    "test 1, get Metric1",
+			method:  http.MethodPost,
 			request: "/value/",
-			body: `{"id": "Metric1", "type": "gauge"}`,
+			body:    `{"id": "Metric1", "type": "gauge"}`,
 			want: want{
-				code: http.StatusOK,
+				code:        http.StatusOK,
 				contentType: "application/json",
-				body: `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
+				body:        `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
 			},
 		},
 		{
-			name: "test 2, get Metric2",
-			method: http.MethodPost,
+			name:    "test 2, get Metric2",
+			method:  http.MethodPost,
 			request: "/value/",
-			body: `{"id": "Metric2", "type": "counter"}`,
+			body:    `{"id": "Metric2", "type": "counter"}`,
 			want: want{
-				code: http.StatusOK,
+				code:        http.StatusOK,
 				contentType: "application/json",
-				body: `{"id": "Metric2", "type": "counter", "delta": 3}`,
+				body:        `{"id": "Metric2", "type": "counter", "delta": 3}`,
 			},
 		},
 		{
-			name: "test 3, get unkown Metric3",
-			method: http.MethodPost,
+			name:    "test 3, get unkown Metric3",
+			method:  http.MethodPost,
 			request: "/value/",
-			body: `{"id": "Metric3", "type": "counter"}`,
+			body:    `{"id": "Metric3", "type": "counter"}`,
 			want: want{
-				code: http.StatusNotFound,
+				code:        http.StatusNotFound,
 				contentType: "text/plain; charset=utf-8",
-				body: "",
+				body:        "",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
+			server := &Server{
+				Storage: storage,
+			}
 			route.Route("/value", func(r chi.Router) {
-				r.Post("/", GetMetricJSON(storage))
+				r.Post("/", server.GetMetricJSON)
 			})
 			s := httptest.NewServer(route)
 			defer s.Close()
@@ -310,12 +322,12 @@ func TestGetMetricJSON(t *testing.T) {
 
 			var buf bytes.Buffer
 			buf.ReadFrom(resp.Body)
-			
+
 			defer resp.Body.Close()
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 			assert.Equal(t, tt.want.contentType, resp.Header.Get("Content-Type"))
-			
+
 			if tt.want.body != "" {
 				assert.JSONEq(t, tt.want.body, buf.String())
 			}
@@ -327,42 +339,45 @@ func TestUpdateMetricJSON(t *testing.T) {
 	storage := &MockStorage{
 		storage: map[string]interface{}{},
 	}
-	
+
 	tests := []struct {
-		name string
-		method string
+		name    string
+		method  string
 		request string
-		body string
-		want want
+		body    string
+		want    want
 	}{
 		{
-			name: "test 1, add Metric1",
-			method: http.MethodPost,
+			name:    "test 1, add Metric1",
+			method:  http.MethodPost,
 			request: "/update/",
-			body: `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
+			body:    `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
 			want: want{
-				code: http.StatusOK,
+				code:        http.StatusOK,
 				contentType: "application/json",
-				body: `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
+				body:        `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
 			},
 		},
 		{
-			name: "test 2, update Metric1",
-			method: http.MethodPost,
+			name:    "test 2, update Metric1",
+			method:  http.MethodPost,
 			request: "/update/",
-			body: `{"id": "Metric1", "type": "gauge", "value": 3.5}`,
+			body:    `{"id": "Metric1", "type": "gauge", "value": 3.5}`,
 			want: want{
-				code: http.StatusOK,
+				code:        http.StatusOK,
 				contentType: "application/json",
-				body: `{"id": "Metric1", "type": "gauge", "value": 3.5}`,
+				body:        `{"id": "Metric1", "type": "gauge", "value": 3.5}`,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
+			server := &Server{
+				Storage: storage,
+			}
 			route.Route("/update", func(r chi.Router) {
-				r.Post("/", UpdateMetricJSON(storage))
+				r.Post("/", server.UpdateMetricJSON)
 			})
 			s := httptest.NewServer(route)
 			defer s.Close()
@@ -375,12 +390,12 @@ func TestUpdateMetricJSON(t *testing.T) {
 
 			var buf bytes.Buffer
 			buf.ReadFrom(resp.Body)
-			
+
 			defer resp.Body.Close()
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
 			assert.Equal(t, tt.want.contentType, resp.Header.Get("Content-Type"))
-			
+
 			if tt.want.body != "" {
 				assert.JSONEq(t, tt.want.body, buf.String())
 			}
