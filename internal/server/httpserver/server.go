@@ -55,8 +55,17 @@ func (server *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		v := val.(float64)
-		vStr = strconv.FormatFloat(float64(v), 'f', -1, 64)
+		m, ok := val.(storage.Metric)
+		if !ok {
+			http.Error(w, "", http.StatusInternalServerError)
+		}
+
+		v, ok := m.Val.(float64)
+		if !ok {
+			http.Error(w, "", http.StatusInternalServerError)
+		}
+
+		vStr = strconv.FormatFloat(v, 'f', -1, 64)
 	case "counter":
 		val, err := server.Storage.GetVal(name)
 		if err != nil {
@@ -64,8 +73,17 @@ func (server *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		v := val.(int64)
-		vStr = strconv.FormatInt(int64(v), 10)
+		m, ok := val.(storage.Metric)
+		if !ok {
+			http.Error(w, "", http.StatusInternalServerError)
+		}
+
+		v, ok := m.Val.(int64)
+		if !ok {
+			http.Error(w, "", http.StatusInternalServerError)
+		}
+
+		vStr = strconv.FormatInt(v, 10)
 	default:
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return

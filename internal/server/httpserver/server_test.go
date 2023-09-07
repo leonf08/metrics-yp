@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
+	"github.com/leonf08/metrics-yp.git/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,11 +47,29 @@ func (m *MockStorage) GetVal(k string) (interface{}, error) {
 func (m *MockStorage) SetVal(k string, v interface{}) error {
 	switch val := v.(type) {
 	case float64:
-		m.storage[k] = val
+		m.storage[k] = storage.Metric{Type: "gauge", Val: val}
 	case int64:
+		_, ok := m.storage[k]
+		if !ok {
+			m.storage[k] = storage.Metric{Type: "counter", Val: val}
+			break
+		}
+
+		met, ok := m.storage[k].(storage.Metric)
+		if !ok {
+			return errors.New("failed type assertion")
+		}
+
+		c, ok := met.Val.(int64)
+		if !ok {
+			return errors.New("failed type assertion")
+		}
+
+		m.storage[k] = storage.Metric{Type: "counter", Val: c + val}
+	case storage.Metric:
 		m.storage[k] = val
 	default:
-		return errors.New("Incorrect type of value")
+		return errors.New("incorrect type of value")
 	}
 
 	return nil
@@ -59,8 +78,14 @@ func (m *MockStorage) SetVal(k string, v interface{}) error {
 func TestGetMetric(t *testing.T) {
 	storage := &MockStorage{
 		storage: map[string]interface{}{
-			"Metric1": float64(2.5),
-			"Metric2": int64(3),
+			"Metric1": storage.Metric{
+				Type: "gauge",
+				Val: float64(2.5),
+			},
+			"Metric2": storage.Metric{
+				Type: "counter",
+				Val: int64(3),
+			},
 		},
 	}
 
