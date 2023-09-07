@@ -47,14 +47,14 @@ func (server *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 	var vStr string
 	name := chi.URLParam(r, "name")
 
+	val, err := server.Storage.GetVal(name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
 	switch typeMetric := chi.URLParam(r, "type"); typeMetric {
 	case "gauge":
-		val, err := server.Storage.GetVal(name)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-
 		m, ok := val.(storage.Metric)
 		if !ok {
 			http.Error(w, "", http.StatusInternalServerError)
@@ -67,12 +67,6 @@ func (server *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 
 		vStr = strconv.FormatFloat(v, 'f', -1, 64)
 	case "counter":
-		val, err := server.Storage.GetVal(name)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-
 		m, ok := val.(storage.Metric)
 		if !ok {
 			http.Error(w, "", http.StatusInternalServerError)
@@ -166,21 +160,31 @@ func (server *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 
 	switch metrics.MType {
 	case "gauge":
-		val, ok := v.(float64)
+		m, ok := v.(storage.Metric)
 		if !ok {
-			http.Error(w, "Type assertion error", http.StatusInternalServerError)
-			return
+			http.Error(w, "", http.StatusInternalServerError)
 		}
+
+		val, ok := m.Val.(float64)
+		if !ok {
+			http.Error(w, "", http.StatusInternalServerError)
+		}
+
 		metrics.Value = new(float64)
-		*metrics.Value = float64(val)
+		*metrics.Value = val
 	case "counter":
-		val, ok := v.(int64)
+		m, ok := v.(storage.Metric)
 		if !ok {
-			http.Error(w, "Type assertion error", http.StatusInternalServerError)
-			return
+			http.Error(w, "", http.StatusInternalServerError)
 		}
+
+		v, ok := m.Val.(int64)
+		if !ok {
+			http.Error(w, "", http.StatusInternalServerError)
+		}
+
 		metrics.Delta = new(int64)
-		*metrics.Delta = int64(val)
+		*metrics.Delta = v
 	default:
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return

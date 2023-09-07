@@ -282,8 +282,14 @@ func TestDefaultHandler(t *testing.T) {
 func TestGetMetricJSON(t *testing.T) {
 	storage := &MockStorage{
 		storage: map[string]interface{}{
-			"Metric1": float64(2.5),
-			"Metric2": int64(3),
+			"Metric1": storage.Metric{
+				Type: "gauge",
+				Val: float64(2.5),
+			},
+			"Metric2": storage.Metric{
+				Type: "counter",
+				Val: int64(3),
+			},
 		},
 	}
 
