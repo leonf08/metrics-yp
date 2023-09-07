@@ -194,7 +194,9 @@ func (server *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server.Storage.SetVal(metrics.ID, v)
+	if err := server.Storage.SetVal(metrics.ID, v); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 
 	if server.Config.StoreInt == 0 {
 		server.Logger.Infoln("Save current metrics")

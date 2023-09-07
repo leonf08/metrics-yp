@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -375,6 +376,9 @@ func TestUpdateMetricJSON(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
 				Storage: storage,
+				Config: &serverconf.Config{
+					StoreInt: 1,
+				},
 			}
 			route.Route("/update", func(r chi.Router) {
 				r.Post("/", server.UpdateMetricJSON)
