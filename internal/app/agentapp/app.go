@@ -3,6 +3,7 @@ package agentapp
 import (
 	"flag"
 	"net/http"
+	"time"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
@@ -30,7 +31,7 @@ func StartApp() {
 		panic(err)
 	}
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 20*time.Second}
 	storage := storage.NewStorage()
 
 	agent := NewAgent(client, storage, cfg)
