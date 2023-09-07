@@ -75,14 +75,10 @@ func StartApp() error {
 			}()
 		} else {
 			go func() {
-				for {
-					select {
-					case <-shutdown:
-						server.Logger.Infoln("Save current metrics and shut down the server")
-						server.Saver.SaveMetrics()
-						os.Exit(0)
-					}
-				}
+				<- shutdown
+				server.Logger.Infoln("Save current metrics and shut down the server")
+				server.Saver.SaveMetrics()
+				os.Exit(0)
 			}()
 		}
 	}

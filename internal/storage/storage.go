@@ -84,19 +84,19 @@ func (st *MemStorage) SetVal(k string, v interface{}) error {
 
 		m, ok := st.Storage[k].(Metric)
 		if !ok {
-			return errors.New("Failed type assertion")
+			return errors.New("failed type assertion")
 		}
 
 		c, ok := m.Val.(int64)
 		if !ok {
-			return errors.New("Failed type assertion")
+			return errors.New("failed type assertion")
 		}
 
 		st.Storage[k] = Metric{Type: "counter", Val: c + val}
 	case Metric:
 		st.Storage[k] = val
 	default:
-		return errors.New("Incorrect type of value")
+		return errors.New("incorrect type of value")
 	}
 
 	return nil
@@ -126,7 +126,7 @@ func (st *MemStorage) UnmarshalJSON(data []byte) error {
 		if v.Type == "counter" {
 			val, ok := v.Val.(float64)
 			if !ok {
-				return errors.New("Failed type assertion")
+				return errors.New("failed type assertion")
 			}
 
 			st.Storage[k] = Metric{Type: v.Type, Val: int64(val)}
