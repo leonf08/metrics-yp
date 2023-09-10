@@ -124,9 +124,6 @@ func (a *Agent) sendMetricJSON(url string) {
 }
 
 func (a *Agent) sendMetric(url string) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(a.config.Timeout))
-	defer cancel()
-
 	metrics := a.storage.ReadAll()
 	for name, value := range metrics {
 		m, ok := value.(storage.Metric)
@@ -153,7 +150,7 @@ func (a *Agent) sendMetric(url string) {
 			a.logger.Fatalln("invalid metric type")
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, nil)
 		if err != nil {
 			a.logger.Errorln(err)
 			break

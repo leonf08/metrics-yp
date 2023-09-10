@@ -4,7 +4,6 @@ type Config struct {
 	Addr      string `env:"ADDRESS"`
 	ReportInt int    `env:"REPORT_INTERVAL"`
 	PollInt   int    `env:"POLL_INTERVAL"`
-	Timeout   int    `env:"TIMEOUT"`
 }
 
 func NewConfig(addr string, reportInt, pollInt int) *Config {
