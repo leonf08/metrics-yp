@@ -65,19 +65,25 @@ func StartApp() error {
 					select {
 					case <-timer.C:
 						server.Logger.Infoln("Save current metrics")
-						server.Saver.SaveMetrics()
+						if err := server.Saver.SaveMetrics(); err != nil {
+							server.Logger.Errorln(err)
+						}
 					case <-shutdown:
 						server.Logger.Infoln("Save current metrics and shut down the server")
-						server.Saver.SaveMetrics()
+						if err := server.Saver.SaveMetrics(); err != nil {
+							server.Logger.Fatalln(err)
+						}
 						os.Exit(0)
 					}
 				}
 			}()
 		} else {
 			go func() {
-				<- shutdown
+				<-shutdown
 				server.Logger.Infoln("Save current metrics and shut down the server")
-				server.Saver.SaveMetrics()
+				if err := server.Saver.SaveMetrics(); err != nil {
+					server.Logger.Fatalln(err)
+				}
 				os.Exit(0)
 			}()
 		}
