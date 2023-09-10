@@ -39,8 +39,8 @@ func (a *Agent) Run() {
 	m := new(runtime.MemStats)
 	url := "http://" + a.config.Addr + "/update"
 
-	pollTime := time.NewTicker(time.Duration(a.config.PollInt))
-	reportTime := time.NewTicker(time.Duration(a.config.ReportInt))
+	pollTime := time.NewTicker(time.Second * time.Duration(a.config.PollInt))
+	reportTime := time.NewTicker(time.Second * time.Duration(a.config.ReportInt))
 
 	for {
 		select {
