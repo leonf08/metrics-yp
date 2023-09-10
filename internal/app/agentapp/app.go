@@ -22,7 +22,7 @@ func StartApp() {
 	address := flag.String("a", "localhost:8080", "Host address of the server")
 	reportInt := flag.Int("r", 10, "Report interval to server")
 	pollInt := flag.Int("p", 2, "Poll interval for metrics")
-	timeout := flag.Int("t", 10, "HTTP request timeout")
+	timeout := flag.Int("t", 20, "HTTP request timeout")
 	flag.Parse()
 
 	cfg := agentconf.NewConfig(*address, *reportInt, *pollInt, *timeout)
