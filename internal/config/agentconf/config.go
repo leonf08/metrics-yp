@@ -7,11 +7,10 @@ type Config struct {
 	Timeout   int    `env:"TIMEOUT"`
 }
 
-func NewConfig(addr string, reportInt, pollInt, timeout int) *Config {
+func NewConfig(addr string, reportInt, pollInt int) *Config {
 	return &Config{
 		Addr:      addr,
 		ReportInt: reportInt,
 		PollInt:   pollInt,
-		Timeout:   timeout,
 	}
 }

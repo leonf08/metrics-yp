@@ -93,10 +93,7 @@ func (a *Agent) sendMetricJSON(url string) {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(a.config.Timeout))
-		defer cancel()
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, &buf)
 		if err != nil {
 			a.logger.Errorln("Failed to create http request", err)
 			return

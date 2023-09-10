@@ -20,12 +20,11 @@ func StartApp() {
 	log := logger.NewLogger(l)
 
 	address := flag.String("a", "localhost:8080", "Host address of the server")
-	reportInt := flag.Int("r", 20, "Report interval to server")
+	reportInt := flag.Int("r", 10, "Report interval to server")
 	pollInt := flag.Int("p", 2, "Poll interval for metrics")
-	timeout := flag.Int("t", 20, "HTTP request timeout")
 	flag.Parse()
 
-	cfg := agentconf.NewConfig(*address, *reportInt, *pollInt, *timeout)
+	cfg := agentconf.NewConfig(*address, *reportInt, *pollInt)
 	err = env.Parse(cfg)
 	if err != nil {
 		panic(err)
