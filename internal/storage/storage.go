@@ -1,99 +1,139 @@
 package storage
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"math/rand"
 	"runtime"
 )
 
 type Repository interface {
-	GetGaugeMetrics() map[string]GaugeMetric
-	GetCounterMetrics() map[string]CounterMetric
-	GetGaugeMetricVal(name string) (GaugeMetric, bool)
-	GetCounterMetricVal(name string) (CounterMetric, bool)
-	WriteGaugeMetric(name string, val float64)
-	WriteCounterMetric(name string, val int64)
-	UpdateGaugeMetrics()
-	UpdateCounterMetrics()
+	ReadAll() map[string]interface{}
+	Update(interface{})
+	SetVal(k string, v interface{}) error
+	GetVal(k string) (interface{}, error)
 }
 
-type GaugeMetric float64
-type CounterMetric int64
-
-type memStorage struct {
-	gaugeStorage map[string]GaugeMetric
-	counterStorage map[string]CounterMetric
+type MemStorage struct {
+	counter int64					`json:"-"`
+	Storage map[string]interface{} 	`json:"metrics"`
 }
 
-func NewStorage() *memStorage {
-	return &memStorage{
-		gaugeStorage: make(map[string]GaugeMetric),
-		counterStorage: make(map[string]CounterMetric),
+type Metric struct {
+	Type string 	`json:"type"`
+	Val interface{} `json:"value"`
+}
+
+func NewStorage() *MemStorage {
+	return &MemStorage{
+		Storage: make(map[string]interface{}),
 	}
 }
 
-func (mem *memStorage) UpdateGaugeMetrics() {
-	m := new(runtime.MemStats)
-	runtime.ReadMemStats(m)
-	mem.gaugeStorage = map[string]GaugeMetric {
-		"Alloc": GaugeMetric(m.Alloc),
-		"BuckHashSys": GaugeMetric(m.BuckHashSys),
-		"Frees": GaugeMetric(m.Frees),
-		"GCCPUFraction": GaugeMetric(m.GCCPUFraction),
-		"GCSys": GaugeMetric(m.GCSys),
-		"HeapAlloc": GaugeMetric(m.HeapAlloc),
-		"HeapIdle": GaugeMetric(m.HeapIdle),
-		"HeapInuse": GaugeMetric(m.HeapInuse),
-		"HeapObjects": GaugeMetric(m.HeapObjects),
-		"HeapReleased": GaugeMetric(m.HeapReleased),
-		"HeapSys": GaugeMetric(m.HeapSys),
-		"LastGC": GaugeMetric(m.LastGC),
-		"Lookups": GaugeMetric(m.Lookups),
-		"MCacheInuse": GaugeMetric(m.MCacheInuse),
-		"MCacheSys": GaugeMetric(m.MCacheSys),
-		"MSpanInuse": GaugeMetric(m.MSpanInuse),
-		"MSpanSys": GaugeMetric(m.MSpanSys),
-		"Mallocs": GaugeMetric(m.Mallocs),
-		"NextGC": GaugeMetric(m.NextGC),
-		"NumForcedGC": GaugeMetric(m.NumForcedGC),
-		"NumGC": GaugeMetric(m.NumGC),
-		"OtherSys": GaugeMetric(m.OtherSys),
-		"PauseTotalNs": GaugeMetric(m.PauseTotalNs),
-		"StackInuse": GaugeMetric(m.StackInuse),
-		"StackSys": GaugeMetric(m.StackSys),
-		"Sys": GaugeMetric(m.Sys),
-		"TotalAlloc": GaugeMetric(m.TotalAlloc),
+func (st *MemStorage) Update(v interface{}) {
+	if m, ok := v.(*runtime.MemStats); ok {
+		st.Storage = map[string]interface{}{
+			"Alloc":         Metric{Type: "gauge", Val: float64(m.Alloc)},
+			"BuckHashSys":   Metric{Type: "gauge", Val: float64(m.BuckHashSys)},
+			"Frees":         Metric{Type: "gauge", Val: float64(m.Frees)},
+			"GCCPUFraction": Metric{Type: "gauge", Val: float64(m.GCCPUFraction)},
+			"GCSys":         Metric{Type: "gauge", Val: float64(m.GCSys)},
+			"HeapAlloc":     Metric{Type: "gauge", Val: float64(m.HeapAlloc)},
+			"HeapIdle":      Metric{Type: "gauge", Val: float64(m.HeapIdle)},
+			"HeapInuse":     Metric{Type: "gauge", Val: float64(m.HeapInuse)},
+			"HeapObjects":   Metric{Type: "gauge", Val: float64(m.HeapObjects)},
+			"HeapReleased":  Metric{Type: "gauge", Val: float64(m.HeapReleased)},
+			"HeapSys":       Metric{Type: "gauge", Val: float64(m.HeapSys)},
+			"LastGC":        Metric{Type: "gauge", Val: float64(m.LastGC)},
+			"Lookups":       Metric{Type: "gauge", Val: float64(m.Lookups)},
+			"MCacheInuse":   Metric{Type: "gauge", Val: float64(m.MCacheInuse)},
+			"MCacheSys":     Metric{Type: "gauge", Val: float64(m.MCacheSys)},
+			"MSpanInuse":    Metric{Type: "gauge", Val: float64(m.MSpanInuse)},
+			"MSpanSys":      Metric{Type: "gauge", Val: float64(m.MSpanSys)},
+			"Mallocs":       Metric{Type: "gauge", Val: float64(m.Mallocs)},
+			"NextGC":        Metric{Type: "gauge", Val: float64(m.NextGC)},
+			"NumForcedGC":   Metric{Type: "gauge", Val: float64(m.NumForcedGC)},
+			"NumGC":         Metric{Type: "gauge", Val: float64(m.NumGC)},
+			"OtherSys":      Metric{Type: "gauge", Val: float64(m.OtherSys)},
+			"PauseTotalNs":  Metric{Type: "gauge", Val: float64(m.PauseTotalNs)},
+			"StackInuse":    Metric{Type: "gauge", Val: float64(m.StackInuse)},
+			"StackSys":      Metric{Type: "gauge", Val: float64(m.StackSys)},
+			"Sys":           Metric{Type: "gauge", Val: float64(m.Sys)},
+			"TotalAlloc":    Metric{Type: "gauge", Val: float64(m.TotalAlloc)},
+		}
 	}
 
 	val := rand.Float64()
-	mem.gaugeStorage["RandomValue"] = GaugeMetric(val)
+	st.Storage["RandomValue"] = Metric{Type: "gauge", Val: val}
+
+	st.counter++
+	st.Storage["PollCount"] = Metric{Type: "counter", Val: st.counter}
 }
 
-func (mem *memStorage) UpdateCounterMetrics() {
-	mem.counterStorage["PollCount"]++
+func (st *MemStorage) SetVal(k string, v interface{}) error {
+	switch val := v.(type) {
+	case float64:
+		st.Storage[k] = Metric{Type: "gauge", Val: val}
+	case int64:
+		_, ok := st.Storage[k]
+		if !ok {
+			st.Storage[k] = Metric{Type: "counter", Val: val}
+			break
+		}
+
+		m, ok := st.Storage[k].(Metric)
+		if !ok {
+			return errors.New("failed type assertion")
+		}
+
+		c, ok := m.Val.(int64)
+		if !ok {
+			return errors.New("failed type assertion")
+		}
+
+		st.Storage[k] = Metric{Type: "counter", Val: c + val}
+	case Metric:
+		st.Storage[k] = val
+	default:
+		return errors.New("incorrect type of value")
+	}
+
+	return nil
 }
 
-func (mem *memStorage) WriteGaugeMetric(name string, val float64) {
-	mem.gaugeStorage[name] = GaugeMetric(val)
+func (st *MemStorage) GetVal(k string) (interface{}, error) {
+	v, ok := st.Storage[k]
+	if !ok {
+		return Metric{}, fmt.Errorf("metric %s not found", k)
+	}
+
+	return v, nil
 }
 
-func (mem *memStorage) WriteCounterMetric(name string, val int64) {
-	mem.counterStorage[name] += CounterMetric(val)
+func (st *MemStorage) ReadAll() map[string]interface{} {
+	return st.Storage
 }
 
-func (mem memStorage) GetGaugeMetrics() map[string]GaugeMetric {
-	return mem.gaugeStorage
-}
+func (st *MemStorage) UnmarshalJSON(data []byte) error {
+	var s map[string]map[string]Metric
 
-func (mem memStorage) GetCounterMetrics() map[string]CounterMetric {
-	return mem.counterStorage
-}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
 
-func (mem memStorage) GetGaugeMetricVal(name string) (GaugeMetric, bool) {
-	v, ok := mem.gaugeStorage[name]
-	return v, ok
-}
+	for k, v := range s["metrics"] {
+		if v.Type == "counter" {
+			val, ok := v.Val.(float64)
+			if !ok {
+				return errors.New("failed type assertion")
+			}
 
-func (mem memStorage) GetCounterMetricVal(name string) (CounterMetric, bool) {
-	v, ok := mem.counterStorage[name]
-	return v, ok
+			st.Storage[k] = Metric{Type: v.Type, Val: int64(val)}
+		} else {
+			st.Storage[k] = v
+		}
+	}
+
+	return nil
 }
