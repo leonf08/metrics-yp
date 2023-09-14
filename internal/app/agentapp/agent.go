@@ -18,14 +18,21 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
+type Repository interface {
+	ReadAll() map[string]interface{}
+	Update(interface{})
+	SetVal(k string, v interface{}) error
+	GetVal(k string) (interface{}, error)
+}
+
 type Agent struct {
 	client  *http.Client
-	storage storage.Repository
+	storage Repository
 	logger  logger.Logger
 	config  *agentconf.Config
 }
 
-func NewAgent(cl *http.Client, st storage.Repository, l logger.Logger, cfg *agentconf.Config) *Agent {
+func NewAgent(cl *http.Client, st Repository, l logger.Logger, cfg *agentconf.Config) *Agent {
 	return &Agent{
 		client:  cl,
 		storage: st,

@@ -104,6 +104,11 @@ func initServer() (*httpserver.Server, error) {
 		return nil, err
 	}
 
+	database, err := storage.NewDb(config.DataBaseAddr)
+	if err != nil {
+		return nil, err
+	}
+
 	storage := storage.NewStorage()
 
 	metricsSaver, err := httpserver.NewSaver(config.FileStoragePath, storage)
@@ -116,7 +121,7 @@ func initServer() (*httpserver.Server, error) {
 		return nil, err
 	}
 
-	return httpserver.NewServer(storage, config, metricsSaver, metricsLoader, log), nil
+	return httpserver.NewServer(storage, config, metricsSaver, metricsLoader, log, database), nil
 }
 
 func initLogger() (logger.Logger, error) {
@@ -139,10 +144,11 @@ func processFlagsEnv() (*serverconf.Config, error) {
 	address := flag.String("a", ":8080", "Host address of the server")
 	storeInt := flag.Int("i", 300, "Store interval for the metrics")
 	filePath := flag.String("f", "tmp/metrics-db.json", "Path to file for metrics storage")
+	dbAddr := flag.String("d", "", "DataBase address")
 	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")
 	flag.Parse()
 
-	cfg := serverconf.NewConfig(*storeInt, *address, *filePath, *restore)
+	cfg := serverconf.NewConfig(*storeInt, *address, *filePath, *dbAddr, *restore)
 	if err := env.Parse(cfg); err != nil {
 		return nil, err
 	}
