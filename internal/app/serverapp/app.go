@@ -27,6 +27,10 @@ func StartApp() error {
 	router := chi.NewRouter()
 	router.Get("/", server.Default)
 	router.Post("/", server.Default)
+	router.Route("/", func(r chi.Router) {
+		r.Get("/", server.Default)
+		r.Get("/ping", server.PingDB)
+	})
 	router.Route("/value", func(r chi.Router) {
 		r.Get("/{type}/{name}", server.GetMetric)
 		r.Post("/", server.GetMetricJSON)
