@@ -25,3 +25,4 @@ vendor/
 .vscode
 metricstest
 cmd/server/tmp/metrics-db.json
+tmp/metrics-db.json

@@ -1,11 +1,10 @@
 package httpserver
 
 import (
-	"net/http"
-
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -19,22 +18,32 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/models"
 )
 
+type Repository interface {
+	ReadAll() map[string]interface{}
+	Update(interface{})
+	SetVal(k string, v interface{}) error
+	GetVal(k string) (interface{}, error)
+}
+
 type Server struct {
-	Storage storage.Repository
+	Storage Repository
 	Config  *serverconf.Config
 	Saver   *Saver
 	Loader  *Loader
 	Logger  logger.Logger
+	db      *storage.PostGresDB
 }
 
-func NewServer(st storage.Repository, cfg *serverconf.Config,
-	sv *Saver, ld *Loader, logger logger.Logger) *Server {
+func NewServer(st Repository, cfg *serverconf.Config,
+	sv *Saver, ld *Loader, logger logger.Logger, db *storage.PostGresDB,
+) *Server {
 	return &Server{
 		Storage: st,
 		Config:  cfg,
 		Saver:   sv,
 		Loader:  ld,
 		Logger:  logger,
+		db:      db,
 	}
 }
 
@@ -233,6 +242,21 @@ func (server *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (server *Server) PingDB(w http.ResponseWriter, r *http.Request) {
+	if server.db == nil {
+		http.Error(w, "No database", http.StatusInternalServerError)
+		return
+	}
+
+	err := server.db.CheckConn()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (server *Server) LoggingMiddleware(next http.Handler) http.Handler {

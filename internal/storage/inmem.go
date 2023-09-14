@@ -8,21 +8,14 @@ import (
 	"runtime"
 )
 
-type Repository interface {
-	ReadAll() map[string]interface{}
-	Update(interface{})
-	SetVal(k string, v interface{}) error
-	GetVal(k string) (interface{}, error)
-}
-
 type MemStorage struct {
-	counter int64					`json:"-"`
-	Storage map[string]interface{} 	`json:"metrics"`
+	counter int64                  `json:"-"`
+	Storage map[string]interface{} `json:"metrics"`
 }
 
 type Metric struct {
-	Type string 	`json:"type"`
-	Val interface{} `json:"value"`
+	Type string      `json:"type"`
+	Val  interface{} `json:"value"`
 }
 
 func NewStorage() *MemStorage {
