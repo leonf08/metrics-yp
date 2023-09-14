@@ -108,7 +108,7 @@ func initServer() (*httpserver.Server, error) {
 		return nil, err
 	}
 
-	database, err := storage.NewDb(config.DataBaseAddr)
+	database, err := storage.NewDB(config.DataBaseAddr)
 	if err != nil {
 		return nil, err
 	}

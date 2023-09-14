@@ -9,7 +9,7 @@ type PostGresDB struct {
 	db *sqlx.DB
 }
 
-func NewDb(sourceName string) (*PostGresDB, error) {
+func NewDB(sourceName string) (*PostGresDB, error) {
 	if sourceName == "" {
 		return nil, nil
 	}
