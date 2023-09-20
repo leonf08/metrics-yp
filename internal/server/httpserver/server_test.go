@@ -409,7 +409,7 @@ func TestUpdateMetricJSON(t *testing.T) {
 			server := &Server{
 				storage: storage,
 				config: &serverconf.Config{
-					StoreInt: 0,
+					StoreInt: 1,
 				},
 			}
 			route.Route("/update", func(r chi.Router) {
