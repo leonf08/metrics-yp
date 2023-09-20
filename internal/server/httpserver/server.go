@@ -67,7 +67,7 @@ func (server *Server) Run() error {
 
 	g, gCtx := errgroup.WithContext(ctx)
 
-	if server.config.FileStoragePath != "" {
+	if !server.config.IsDB() {
 		if server.config.Restore {
 			server.logger.Infoln("Load metrics from file")
 			m, err := server.loader.loadMetrics()
@@ -300,7 +300,7 @@ func (server *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	if server.config.StoreInt == 0 && server.saver != nil {
+	if !server.config.IsDB() && server.config.StoreInt == 0 {
 		server.logger.Infoln("Save current metrics")
 		if err := server.saver.saveMetrics(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

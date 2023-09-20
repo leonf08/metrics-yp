@@ -6,6 +6,7 @@ type Config struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
 	DataBaseAddr    string `env:"DATABASE_DSN"`
+	useDb           bool
 }
 
 func NewConfig(storeInt int, addr, filePath, dbAddr string, restore bool) *Config {
@@ -16,4 +17,12 @@ func NewConfig(storeInt int, addr, filePath, dbAddr string, restore bool) *Confi
 		DataBaseAddr:    dbAddr,
 		Restore:         restore,
 	}
+}
+
+func (cfg *Config) UseDB(flag bool) {
+	cfg.useDb = flag
+}
+
+func (cfg *Config) IsDB() bool {
+	return cfg.useDb
 }
