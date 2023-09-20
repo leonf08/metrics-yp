@@ -100,7 +100,7 @@ func (server *Server) Run() error {
 
 	g.Go(func() error {
 		<-gCtx.Done()
-		if server.config.FileStoragePath != "" {
+		if !server.config.IsDB() {
 			server.logger.Infoln("Save current metrics")
 			if err := server.saver.saveMetrics(); err != nil {
 				server.logger.Errorln(err)
