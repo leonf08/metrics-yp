@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -24,18 +25,18 @@ type want struct {
 
 type MockStorage struct {
 	counter int64
-	storage map[string]interface{}
+	storage map[string]any
 }
 
-func (m *MockStorage) Update(v interface{}) {
-
+func (m *MockStorage) Update(ctx context.Context, v any) error {
+	return nil
 }
 
-func (m *MockStorage) ReadAll() map[string]interface{} {
-	return m.storage
+func (m *MockStorage) ReadAll(ctx context.Context) (map[string]any, error) {
+	return m.storage, nil
 }
 
-func (m *MockStorage) GetVal(k string) (interface{}, error) {
+func (m *MockStorage) GetVal(ctx context.Context, k string) (any, error) {
 	v, ok := m.storage[k]
 	if !ok {
 		return nil, fmt.Errorf("metric %s not found", k)
@@ -44,7 +45,7 @@ func (m *MockStorage) GetVal(k string) (interface{}, error) {
 	return v, nil
 }
 
-func (m *MockStorage) SetVal(k string, v interface{}) error {
+func (m *MockStorage) SetVal(ctx context.Context, k string, v any) error {
 	switch val := v.(type) {
 	case float64:
 		m.storage[k] = storage.Metric{Type: "gauge", Val: val}
@@ -77,14 +78,14 @@ func (m *MockStorage) SetVal(k string, v interface{}) error {
 
 func TestGetMetric(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]interface{}{
+		storage: map[string]any{
 			"Metric1": storage.Metric{
 				Type: "gauge",
-				Val: float64(2.5),
+				Val:  float64(2.5),
 			},
 			"Metric2": storage.Metric{
 				Type: "counter",
-				Val: int64(3),
+				Val:  int64(3),
 			},
 		},
 	}
@@ -135,7 +136,7 @@ func TestGetMetric(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
-				Storage: storage,
+				storage: storage,
 			}
 			route.Get("/value/{type}/{name}", server.GetMetric)
 			s := httptest.NewServer(route)
@@ -160,7 +161,7 @@ func TestGetMetric(t *testing.T) {
 
 func TestUpdateMetric(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]interface{}{},
+		storage: map[string]any{},
 	}
 
 	tests := []struct {
@@ -197,7 +198,7 @@ func TestUpdateMetric(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
-				Storage: storage,
+				storage: storage,
 			}
 			route.Post("/update/{type}/{name}/{val}", server.UpdateMetric)
 			s := httptest.NewServer(route)
@@ -218,7 +219,7 @@ func TestUpdateMetric(t *testing.T) {
 
 func TestDefaultHandler(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]interface{}{},
+		storage: map[string]any{},
 	}
 
 	tests := []struct {
@@ -259,7 +260,7 @@ func TestDefaultHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
-				Storage: storage,
+				storage: storage,
 			}
 			route.Get("/", server.Default)
 			route.Post("/", server.Default)
@@ -281,14 +282,14 @@ func TestDefaultHandler(t *testing.T) {
 
 func TestGetMetricJSON(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]interface{}{
+		storage: map[string]any{
 			"Metric1": storage.Metric{
 				Type: "gauge",
-				Val: float64(2.5),
+				Val:  float64(2.5),
 			},
 			"Metric2": storage.Metric{
 				Type: "counter",
-				Val: int64(3),
+				Val:  int64(3),
 			},
 		},
 	}
@@ -338,7 +339,7 @@ func TestGetMetricJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
-				Storage: storage,
+				storage: storage,
 			}
 			route.Route("/value", func(r chi.Router) {
 				r.Post("/", server.GetMetricJSON)
@@ -369,7 +370,7 @@ func TestGetMetricJSON(t *testing.T) {
 
 func TestUpdateMetricJSON(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]interface{}{},
+		storage: map[string]any{},
 	}
 
 	tests := []struct {
@@ -406,9 +407,9 @@ func TestUpdateMetricJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
-				Storage: storage,
-				Config: &serverconf.Config{
-					StoreInt: 1,
+				storage: storage,
+				config: &serverconf.Config{
+					StoreInt: 0,
 				},
 			}
 			route.Route("/update", func(r chi.Router) {

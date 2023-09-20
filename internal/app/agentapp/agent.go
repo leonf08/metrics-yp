@@ -19,10 +19,10 @@ import (
 )
 
 type Repository interface {
-	ReadAll() map[string]interface{}
-	Update(interface{})
-	SetVal(k string, v interface{}) error
-	GetVal(k string) (interface{}, error)
+	ReadAll(context.Context) (map[string]any, error)
+	Update(context.Context, any) error
+	SetVal(context.Context, string, any) error
+	GetVal(context.Context, string) (any, error)
 }
 
 type Agent struct {
@@ -53,7 +53,7 @@ func (a *Agent) Run() {
 		select {
 		case <-pollTime.C:
 			runtime.ReadMemStats(m)
-			a.storage.Update(m)
+			a.storage.Update(context.Background(), m)
 		case <-reportTime.C:
 			a.sendMetricJSON(url)
 		}
@@ -63,7 +63,11 @@ func (a *Agent) Run() {
 func (a *Agent) sendMetricJSON(url string) {
 	var buf bytes.Buffer
 
-	metrics := a.storage.ReadAll()
+	metrics, err := a.storage.ReadAll(context.Background())
+	if err != nil {
+		a.logger.Errorln(err.Error())
+		return
+	}
 
 	for name, value := range metrics {
 		metStruct := new(models.Metrics)
@@ -131,7 +135,12 @@ func (a *Agent) sendMetricJSON(url string) {
 }
 
 func (a *Agent) sendMetric(url string) {
-	metrics := a.storage.ReadAll()
+	metrics, err := a.storage.ReadAll(context.Background())
+	if err != nil {
+		a.logger.Errorln(err.Error())
+		return
+	}
+
 	for name, value := range metrics {
 		m, ok := value.(storage.Metric)
 		if !ok {

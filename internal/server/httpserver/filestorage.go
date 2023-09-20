@@ -8,20 +8,20 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
-type Saver struct {
+type saver struct {
 	file    *os.File
 	encoder *json.Encoder
-	storage *storage.MemStorage
+	storage Repository
 }
 
-type Loader struct {
+type loader struct {
 	file    *os.File
 	decoder *json.Decoder
 }
 
-func NewSaver(path string, st *storage.MemStorage) (*Saver, error) {
+func newSaver(path string, st Repository) (*saver, error) {
 	if path == "" {
-		return &Saver{}, nil
+		return &saver{}, nil
 	}
 
 	dir := filepath.Dir(path)
@@ -29,19 +29,19 @@ func NewSaver(path string, st *storage.MemStorage) (*Saver, error) {
 		return nil, err
 	}
 
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0666)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0o666)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Saver{
+	return &saver{
 		file:    file,
 		encoder: json.NewEncoder(file),
 		storage: st,
 	}, nil
 }
 
-func (s *Saver) SaveMetrics() error {
+func (s *saver) saveMetrics() error {
 	err := s.file.Truncate(0)
 	if err != nil {
 		return err
@@ -57,27 +57,27 @@ func (s *Saver) SaveMetrics() error {
 	return s.encoder.Encode(s.storage)
 }
 
-func (s *Saver) Close() error {
+func (s *saver) close() error {
 	return s.file.Close()
 }
 
-func NewLoader(path string) (*Loader, error) {
+func newLoader(path string) (*loader, error) {
 	if path == "" {
-		return &Loader{}, nil
+		return &loader{}, nil
 	}
 
-	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0666)
+	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o666)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Loader{
+	return &loader{
 		file:    file,
 		decoder: json.NewDecoder(file),
 	}, nil
 }
 
-func (l *Loader) LoadMetrics() (*storage.MemStorage, error) {
+func (l *loader) loadMetrics() (*storage.MemStorage, error) {
 	m := storage.NewStorage()
 
 	info, err := l.file.Stat()
@@ -94,6 +94,6 @@ func (l *Loader) LoadMetrics() (*storage.MemStorage, error) {
 	return m, nil
 }
 
-func (l *Loader) Close() error {
+func (l *loader) close() error {
 	return l.file.Close()
 }
