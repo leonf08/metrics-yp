@@ -20,8 +20,6 @@ func StartApp() error {
 		return err
 	}
 
-	defer server.CloseFile()
-
 	router := chi.NewRouter()
 	router.Get("/", server.Default)
 	router.Post("/", server.Default)

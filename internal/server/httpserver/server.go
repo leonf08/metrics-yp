@@ -105,6 +105,8 @@ func (server *Server) Run() error {
 			if err := server.saver.saveMetrics(); err != nil {
 				server.logger.Errorln(err)
 			}
+
+			server.CloseFile()
 		}
 
 		return server.s.Shutdown(context.Background())
