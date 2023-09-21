@@ -42,7 +42,7 @@ type Server struct {
 type ServerOption func(*Server) error
 
 func NewServer(st Repository, cfg *serverconf.Config,
-	logger logger.Logger, opts ...ServerOption) (*Server, error) {
+	logger logger.Logger) (*Server, error) {
 	server := &Server{
 		s: &http.Server{
 			Addr: cfg.Addr,
@@ -50,12 +50,6 @@ func NewServer(st Repository, cfg *serverconf.Config,
 		storage: st,
 		config:  cfg,
 		logger:  logger,
-	}
-
-	for _, opt := range opts {
-		if err := opt(server); err != nil {
-			return nil, err
-		}
 	}
 
 	return server, nil
@@ -393,26 +387,20 @@ func (server *Server) RegisterHandler(h http.Handler) {
 	server.s.Handler = h
 }
 
-func WithSaverOpt() ServerOption {
-	return func(s *Server) error {
-		sv, err := newSaver(s.config.FileStoragePath, s.storage)
-		if err != nil {
-			return err
-		}
-
-		s.saver = sv
-		return nil
+func (s *Server) WithStorageInFile() error {
+	sv, err := newSaver(s.config.FileStoragePath, s.storage)
+	if err != nil {
+		return err
 	}
-}
 
-func WithLoaderOpt() ServerOption {
-	return func(s *Server) error {
-		ld, err := newLoader(s.config.FileStoragePath)
-		if err != nil {
-			return err
-		}
+	s.saver = sv
 
-		s.loader = ld
-		return nil
+	ld, err := newLoader(s.config.FileStoragePath)
+	if err != nil {
+		return err
 	}
+
+	s.loader = ld
+
+	return nil
 }

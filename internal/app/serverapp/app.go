@@ -62,9 +62,12 @@ func initServer() (*httpserver.Server, error) {
 	var s *httpserver.Server
 	if config.DataBaseAddr == "" {
 		config.UseDB(false)
-		s, err = httpserver.NewServer(repo, config, log,
-			httpserver.WithSaverOpt(), httpserver.WithLoaderOpt())
+		s, err = httpserver.NewServer(repo, config, log)
 		if err != nil {
+			return nil, err
+		}
+
+		if err = s.WithStorageInFile(); err != nil {
 			return nil, err
 		}
 	} else {
