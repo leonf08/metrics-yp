@@ -30,13 +30,16 @@ type Repository interface {
 	GetVal(context.Context, string) (any, error)
 }
 
+type Pinger interface {
+	Ping() error
+}
+
 type Server struct {
-	s       *http.Server
-	storage Repository
-	config  *serverconf.Config
-	saver   *saver
-	loader  *loader
-	logger  logger.Logger
+	sv          *http.Server
+	storage     Repository
+	config      *serverconf.Config
+	logger      logger.Logger
+	fileStorage *storage.FileStorage
 }
 
 type ServerOption func(*Server) error
@@ -44,7 +47,7 @@ type ServerOption func(*Server) error
 func NewServer(st Repository, cfg *serverconf.Config,
 	logger logger.Logger) (*Server, error) {
 	server := &Server{
-		s: &http.Server{
+		sv: &http.Server{
 			Addr: cfg.Addr,
 		},
 		storage: st,
@@ -55,37 +58,37 @@ func NewServer(st Repository, cfg *serverconf.Config,
 	return server, nil
 }
 
-func (server *Server) Run() error {
+func (s *Server) Run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	g, gCtx := errgroup.WithContext(ctx)
 
-	if !server.config.IsDB() {
-		if server.config.Restore {
-			server.logger.Infoln("Load metrics from file")
-			m, err := server.loader.loadMetrics()
+	if s.config.IsFileStorage() {
+		if s.config.Restore {
+			s.logger.Infoln("Load metrics from file")
+			m, err := s.fileStorage.LoadFromFile()
 			if err != nil {
 				return err
 			}
 
 			for k, v := range m.Storage {
-				if err := server.storage.SetVal(ctx, k, v); err != nil {
+				if err := s.storage.SetVal(ctx, k, v); err != nil {
 					return err
 				}
 			}
 		}
 
-		if server.config.StoreInt > 0 {
-			timer := time.NewTicker(time.Duration(server.config.StoreInt) * time.Second)
+		if s.config.StoreInt > 0 {
+			timer := time.NewTicker(time.Duration(s.config.StoreInt) * time.Second)
 			defer timer.Stop()
 
 			go func() {
 				for {
 					<-timer.C
-					server.logger.Infoln("Save current metrics")
-					if err := server.saver.saveMetrics(); err != nil {
-						server.logger.Errorln(err)
+					s.logger.Infoln("Save current metrics")
+					if err := s.fileStorage.SaveInFile(s.storage); err != nil {
+						s.logger.Errorln(err)
 					}
 				}
 			}()
@@ -94,31 +97,31 @@ func (server *Server) Run() error {
 
 	g.Go(func() error {
 		<-gCtx.Done()
-		if !server.config.IsDB() {
-			server.logger.Infoln("Save current metrics")
-			if err := server.saver.saveMetrics(); err != nil {
-				server.logger.Errorln(err)
+		if s.config.IsFileStorage() {
+			s.logger.Infoln("Save current metrics")
+			if err := s.fileStorage.SaveInFile(s.storage); err != nil {
+				s.logger.Errorln(err)
 			}
 
-			server.CloseFile()
+			s.fileStorage.CloseFileStorage()
 		}
 
-		return server.s.Shutdown(context.Background())
+		return s.sv.Shutdown(context.Background())
 	})
 
 	g.Go(func() error {
-		server.logger.Infoln("Running server", "address", server.config.Addr)
-		return server.s.ListenAndServe()
+		s.logger.Infoln("Running server", "address", s.config.Addr)
+		return s.sv.ListenAndServe()
 	})
 
 	return g.Wait()
 }
 
-func (server *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 	var vStr string
 	name := chi.URLParam(r, "name")
 
-	val, err := server.storage.GetVal(r.Context(), name)
+	val, err := s.storage.GetVal(r.Context(), name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -159,7 +162,7 @@ func (server *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, vStr)
 }
 
-func (server *Server) UpdateMetric(w http.ResponseWriter, r *http.Request) {
+func (s *Server) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	val := chi.URLParam(r, "val")
 
@@ -171,7 +174,7 @@ func (server *Server) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err = server.storage.SetVal(r.Context(), name, v); err != nil {
+		if err = s.storage.SetVal(r.Context(), name, v); err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -182,7 +185,7 @@ func (server *Server) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err = server.storage.SetVal(r.Context(), name, v); err != nil {
+		if err = s.storage.SetVal(r.Context(), name, v); err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -195,28 +198,28 @@ func (server *Server) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (server *Server) Default(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Default(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	metrics, err := server.storage.ReadAll(r.Context())
+	metrics, err := s.storage.ReadAll(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	s := "Metric name - value\r\n"
+	str := "Metric name - value\r\n"
 	for n, v := range metrics {
-		s += fmt.Sprintf("%s - %v\r\n", n, v)
+		str += fmt.Sprintf("%s - %v\r\n", n, v)
 	}
 
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	io.WriteString(w, s)
+	io.WriteString(w, str)
 }
 
-func (server *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 	metrics := new(models.Metrics)
 	if err := json.NewDecoder(r.Body).Decode(metrics); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -228,7 +231,7 @@ func (server *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	v, err := server.storage.GetVal(r.Context(), metrics.ID)
+	v, err := s.storage.GetVal(r.Context(), metrics.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -274,7 +277,7 @@ func (server *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (server *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
+func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 	metrics := new(models.Metrics)
 	if err := json.NewDecoder(r.Body).Decode(metrics); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -292,13 +295,13 @@ func (server *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := server.storage.SetVal(r.Context(), metrics.ID, v); err != nil {
+	if err := s.storage.SetVal(r.Context(), metrics.ID, v); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	if !server.config.IsDB() && server.config.StoreInt == 0 {
-		server.logger.Infoln("Save current metrics")
-		if err := server.saver.saveMetrics(); err != nil {
+	if s.config.IsFileStorage() && s.config.StoreInt == 0 {
+		s.logger.Infoln("Save current metrics")
+		if err := s.fileStorage.SaveInFile(s.storage); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
@@ -311,13 +314,8 @@ func (server *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (server *Server) CloseFile() {
-	server.saver.close()
-	server.loader.close()
-}
-
-func (server *Server) PingDB(w http.ResponseWriter, r *http.Request) {
-	p, ok := server.storage.(storage.Pinger)
+func (s *Server) PingDB(w http.ResponseWriter, r *http.Request) {
+	p, ok := s.storage.(Pinger)
 	if !ok {
 		http.Error(w, "not implemented", http.StatusInternalServerError)
 		return
@@ -331,7 +329,7 @@ func (server *Server) PingDB(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (server *Server) LoggingMiddleware(next http.Handler) http.Handler {
+func (s *Server) LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lw := &logger.LoggingResponse{
 			ResponseWriter: w,
@@ -342,18 +340,18 @@ func (server *Server) LoggingMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(lw, r)
 		duration := time.Since(start)
 
-		server.logger.Infoln("Incoming HTTP request",
+		s.logger.Infoln("Incoming HTTP request",
 			"uri", r.URL.String(),
 			"method", r.Method,
 			"duration", duration)
 
-		server.logger.Infoln("Response",
+		s.logger.Infoln("Response",
 			"status", lw.ResponseData.Status,
 			"size", lw.ResponseData.Size)
 	})
 }
 
-func (server *Server) CompressMiddleware(next http.Handler) http.Handler {
+func (s *Server) CompressMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ow := w
 
@@ -383,24 +381,16 @@ func (server *Server) CompressMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (server *Server) RegisterHandler(h http.Handler) {
-	server.s.Handler = h
+func (s *Server) RegisterHandler(h http.Handler) {
+	s.sv.Handler = h
 }
 
-func (s *Server) WithStorageInFile() error {
-	sv, err := newSaver(s.config.FileStoragePath, s.storage)
+func (s *Server) WithFileStorage() error {
+	f, err := storage.NewFileStorage(s.config.FileStoragePath)
 	if err != nil {
 		return err
 	}
 
-	s.saver = sv
-
-	ld, err := newLoader(s.config.FileStoragePath)
-	if err != nil {
-		return err
-	}
-
-	s.loader = ld
-
+	s.fileStorage = f
 	return nil
 }

@@ -5,8 +5,7 @@ type Config struct {
 	StoreInt        int    `env:"STORE_INTERVAL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
-	DataBaseAddr    string `env:"DATABASE_DSN"`
-	useDB           bool
+	DatabaseAddr    string `env:"DATABASE_DSN"`
 }
 
 func NewConfig(storeInt int, addr, filePath, dbAddr string, restore bool) *Config {
@@ -14,15 +13,15 @@ func NewConfig(storeInt int, addr, filePath, dbAddr string, restore bool) *Confi
 		Addr:            addr,
 		StoreInt:        storeInt,
 		FileStoragePath: filePath,
-		DataBaseAddr:    dbAddr,
+		DatabaseAddr:    dbAddr,
 		Restore:         restore,
 	}
 }
 
-func (cfg *Config) UseDB(flag bool) {
-	cfg.useDB = flag
+func (cfg *Config) IsInMemStorage() bool {
+	return cfg.DatabaseAddr == ""
 }
 
-func (cfg *Config) IsDB() bool {
-	return cfg.useDB
+func (cfg *Config) IsFileStorage() bool {
+	return cfg.FileStoragePath != "" && cfg.IsInMemStorage()
 }

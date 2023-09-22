@@ -8,15 +8,11 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type Pinger interface {
-	Ping() error
-}
-
-type PostGresDB struct {
+type PostgresDB struct {
 	db *sqlx.DB
 }
 
-func NewDB(sourceName string) (*PostGresDB, error) {
+func NewDB(sourceName string) (*PostgresDB, error) {
 	if sourceName == "" {
 		return nil, nil
 	}
@@ -26,19 +22,19 @@ func NewDB(sourceName string) (*PostGresDB, error) {
 		return nil, err
 	}
 
-	return &PostGresDB{
+	return &PostgresDB{
 		db: db,
 	}, nil
 }
 
-func (db *PostGresDB) Ping() error {
+func (db *PostgresDB) Ping() error {
 	return db.db.Ping()
 }
 
-func (db *PostGresDB) CreateTable(ctx context.Context) error {
+func (db *PostgresDB) CreateTable(ctx context.Context) error {
 	queryStr := `
 		CREATE TABLE IF NOT EXISTS metrics(
-			name TEXT,
+			name TEXT PRIMARY KEY,
 			type TEXT,
 			value DOUBLE PRECISION
 		)
@@ -50,11 +46,11 @@ func (db *PostGresDB) CreateTable(ctx context.Context) error {
 	return nil
 }
 
-func (db *PostGresDB) Update(ctx context.Context, v any) error {
+func (db *PostgresDB) Update(ctx context.Context, v any) error {
 	return nil
 }
 
-func (db *PostGresDB) ReadAll(ctx context.Context) (map[string]any, error) {
+func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 	queryStr := `SELECT * FROM metrics`
 
 	rows, err := db.db.QueryxContext(ctx, queryStr)
@@ -89,7 +85,7 @@ func (db *PostGresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 	return metrics, nil
 }
 
-func (db *PostGresDB) SetVal(ctx context.Context, k string, v any) error {
+func (db *PostgresDB) SetVal(ctx context.Context, k string, v any) error {
 	queryCheck := `SELECT EXISTS(SELECT 1 FROM metrics WHERE NAME = $1)`
 
 	row := db.db.QueryRowxContext(ctx, queryCheck, k)
@@ -124,7 +120,7 @@ func (db *PostGresDB) SetVal(ctx context.Context, k string, v any) error {
 	return nil
 }
 
-func (db *PostGresDB) GetVal(ctx context.Context, k string) (any, error) {
+func (db *PostgresDB) GetVal(ctx context.Context, k string) (any, error) {
 	queryStr := `SELECT TYPE, VALUE FROM metrics WHERE NAME = $1`
 
 	row := db.db.QueryRowxContext(ctx, queryStr, k)

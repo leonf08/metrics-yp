@@ -10,8 +10,8 @@ import (
 )
 
 type MemStorage struct {
-	counter int64          `json:"-"`
 	Storage map[string]any `json:"metrics"`
+	counter int64          `json:"-"`
 }
 
 func NewStorage() *MemStorage {

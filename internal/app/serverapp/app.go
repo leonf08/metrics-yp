@@ -59,20 +59,13 @@ func initServer() (*httpserver.Server, error) {
 		return nil, err
 	}
 
-	var s *httpserver.Server
-	if config.DataBaseAddr == "" {
-		config.UseDB(false)
-		s, err = httpserver.NewServer(repo, config, log)
-		if err != nil {
-			return nil, err
-		}
+	s, err := httpserver.NewServer(repo, config, log)
+	if err != nil {
+		return nil, err
+	}
 
-		if err = s.WithStorageInFile(); err != nil {
-			return nil, err
-		}
-	} else {
-		config.UseDB(true)
-		s, err = httpserver.NewServer(repo, config, log)
+	if config.IsFileStorage() {
+		err = s.WithFileStorage()
 		if err != nil {
 			return nil, err
 		}
@@ -101,7 +94,7 @@ func getConfig() (*serverconf.Config, error) {
 	address := flag.String("a", ":8080", "Host address of the server")
 	storeInt := flag.Int("i", 300, "Store interval for the metrics")
 	filePath := flag.String("f", "tmp/metrics-db.json", "Path to file for metrics storage")
-	dbAddr := flag.String("d", "", "DataBase address")
+	dbAddr := flag.String("d", "", "Database address")
 	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")
 	flag.Parse()
 
@@ -115,11 +108,11 @@ func getConfig() (*serverconf.Config, error) {
 
 func initRepo(cfg *serverconf.Config) (httpserver.Repository, error) {
 	var repo httpserver.Repository
-	if cfg.DataBaseAddr == "" {
+	if cfg.IsInMemStorage() {
 		st := storage.NewStorage()
 		repo = st
 	} else {
-		db, err := storage.NewDB(cfg.DataBaseAddr)
+		db, err := storage.NewDB(cfg.DatabaseAddr)
 		if err != nil {
 			return nil, err
 		}

@@ -1,17 +1,20 @@
-package httpserver
+package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
-
-	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
+
+type FileStorage struct {
+	s *saver
+	l *loader
+}
 
 type saver struct {
 	file    *os.File
 	encoder *json.Encoder
-	storage Repository
 }
 
 type loader struct {
@@ -19,7 +22,41 @@ type loader struct {
 	decoder *json.Decoder
 }
 
-func newSaver(path string, st Repository) (*saver, error) {
+func NewFileStorage(path string) (*FileStorage, error) {
+	s, err := newSaver(path)
+	if err != nil {
+		return nil, err
+	}
+
+	l, err := newLoader(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FileStorage{
+		s: s,
+		l: l,
+	}, nil
+}
+
+func (fs *FileStorage) SaveInFile(m any) error {
+	mt, ok := m.(*MemStorage)
+	if !ok {
+		return errors.New("invalid type assertion")
+	}
+	return fs.s.save(mt)
+}
+
+func (fs *FileStorage) LoadFromFile() (*MemStorage, error) {
+	return fs.l.load()
+}
+
+func (fs *FileStorage) CloseFileStorage() {
+	fs.s.close()
+	fs.l.close()
+}
+
+func newSaver(path string) (*saver, error) {
 	if path == "" {
 		return &saver{}, nil
 	}
@@ -37,11 +74,10 @@ func newSaver(path string, st Repository) (*saver, error) {
 	return &saver{
 		file:    file,
 		encoder: json.NewEncoder(file),
-		storage: st,
 	}, nil
 }
 
-func (s *saver) saveMetrics() error {
+func (s *saver) save(m *MemStorage) error {
 	err := s.file.Truncate(0)
 	if err != nil {
 		return err
@@ -54,7 +90,7 @@ func (s *saver) saveMetrics() error {
 
 	s.encoder.SetIndent("", "    ")
 
-	return s.encoder.Encode(s.storage)
+	return s.encoder.Encode(m)
 }
 
 func (s *saver) close() error {
@@ -77,8 +113,10 @@ func newLoader(path string) (*loader, error) {
 	}, nil
 }
 
-func (l *loader) loadMetrics() (*storage.MemStorage, error) {
-	m := storage.NewStorage()
+func (l *loader) load() (*MemStorage, error) {
+	m := &MemStorage{
+		Storage: make(map[string]any),
+	}
 
 	info, err := l.file.Stat()
 	if err != nil {
