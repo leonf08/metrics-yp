@@ -317,7 +317,7 @@ func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
-	var metrics []models.MetricJSON
+	metrics := make([]models.MetricJSON, 0)
 	if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

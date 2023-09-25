@@ -25,7 +25,7 @@ func StartApp() error {
 		r.Get("/", server.Default)
 		r.Post("/", server.Default)
 		r.Get("/ping", server.PingDB)
-		r.Post("/updates", server.UpdateMetricsBatch)
+		r.Post("/updates/", server.UpdateMetricsBatch)
 		r.Route("/value", func(r chi.Router) {
 			r.Get("/{type}/{name}", server.GetMetric)
 			r.Post("/", server.GetMetricJSON)
