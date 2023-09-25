@@ -110,7 +110,7 @@ func (st *MemStorage) ReadAll(ctx context.Context) (map[string]any, error) {
 }
 
 func (st *MemStorage) UnmarshalJSON(data []byte) error {
-	var s map[string]map[string]Metric
+	s := make(map[string]map[string]Metric)
 
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err

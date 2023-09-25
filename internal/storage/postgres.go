@@ -115,7 +115,7 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 func (db *PostgresDB) SetVal(ctx context.Context, k string, v any) error {
 	const queryStr = `INSERT INTO metrics (NAME, TYPE, VALUE)
 		VALUES ($1, $2, $3) ON CONFLICT (NAME) 
-		DO UPDATE SET VALUE = $3 WHERE NAME = $1`
+		DO UPDATE SET VALUE = $3 WHERE metrics.NAME = $1`
 
 	var t string
 	_, ok := v.(float64)
