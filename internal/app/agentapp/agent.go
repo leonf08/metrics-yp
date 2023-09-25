@@ -70,7 +70,7 @@ func (a *Agent) sendMetricJSON(url string) {
 	}
 
 	for name, value := range metrics {
-		metStruct := new(models.Metrics)
+		metStruct := new(models.MetricJSON)
 		m, ok := value.(storage.Metric)
 		if !ok {
 			a.logger.Errorln("Invalid type")

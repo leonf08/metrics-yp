@@ -21,19 +21,19 @@ func StartApp() error {
 	}
 
 	router := chi.NewRouter()
-	router.Get("/", server.Default)
-	router.Post("/", server.Default)
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", server.Default)
+		r.Post("/", server.Default)
 		r.Get("/ping", server.PingDB)
-	})
-	router.Route("/value", func(r chi.Router) {
-		r.Get("/{type}/{name}", server.GetMetric)
-		r.Post("/", server.GetMetricJSON)
-	})
-	router.Route("/update", func(r chi.Router) {
-		r.Post("/", server.UpdateMetricJSON)
-		r.Post("/{type}/{name}/{val}", server.UpdateMetric)
+		r.Post("/updates", server.UpdateMetricsBatch)
+		r.Route("/value", func(r chi.Router) {
+			r.Get("/{type}/{name}", server.GetMetric)
+			r.Post("/", server.GetMetricJSON)
+		})
+		r.Route("/update", func(r chi.Router) {
+			r.Post("/", server.UpdateMetricJSON)
+			r.Post("/{type}/{name}/{val}", server.UpdateMetric)
+		})
 	})
 
 	handler := server.LoggingMiddleware(server.CompressMiddleware(router))

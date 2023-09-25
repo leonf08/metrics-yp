@@ -1,7 +1,7 @@
 package storage
 
-type dbEntry struct {
-	Name string
+type MetricsDB struct {
+	Name string `json:"name" db:"name"`
 	Metric
 }
 

@@ -47,11 +47,38 @@ func (db *PostgresDB) CreateTable(ctx context.Context) error {
 }
 
 func (db *PostgresDB) Update(ctx context.Context, v any) error {
-	return nil
+	metrics, ok := v.([]MetricsDB)
+	if !ok {
+		return errors.New("invalid type assertion")
+	}
+
+	const queryStr = `UPDATE metrics SET VALUE = $1 WHERE NAME = $2`
+	tx, err := db.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	stmt, err := tx.PreparexContext(ctx, queryStr)
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	for _, m := range metrics {
+		_, err := stmt.ExecContext(ctx, m.Val, m.Name)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
-	queryStr := `SELECT * FROM metrics`
+	const queryStr = `SELECT * FROM metrics`
 
 	rows, err := db.db.QueryxContext(ctx, queryStr)
 	if err != nil {
@@ -61,7 +88,7 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 
 	metrics := make(map[string]any)
 	for rows.Next() {
-		var m dbEntry
+		var m MetricsDB
 		if err := rows.StructScan(&m); err != nil {
 			return nil, err
 		}
@@ -86,35 +113,21 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 }
 
 func (db *PostgresDB) SetVal(ctx context.Context, k string, v any) error {
-	queryCheck := `SELECT EXISTS(SELECT 1 FROM metrics WHERE NAME = $1)`
+	const queryStr = `INSERT INTO metrics (NAME, TYPE, VALUE)
+		VALUES ($1, $2, $3) ON CONFLICT (NAME) 
+		DO UPDATE SET VALUE = $3 WHERE NAME = $1`
 
-	row := db.db.QueryRowxContext(ctx, queryCheck, k)
-	var exists bool
-	if err := row.Scan(&exists); err != nil {
-		return err
+	var t string
+	_, ok := v.(float64)
+	if ok {
+		t = "gauge"
+	} else {
+		t = "counter"
 	}
 
-	var queryStr string
-	if exists {
-		queryStr = `UPDATE metrics SET VALUE = $1 WHERE NAME = $2`
-		_, err := db.db.ExecContext(ctx, queryStr, k, v)
-		if err != nil {
-			return err
-		}
-	} else {
-		var t string
-		_, ok := v.(float64)
-		if ok {
-			t = "gauge"
-		} else {
-			t = "counter"
-		}
-
-		queryStr = `INSERT INTO metrics (NAME,TYPE,VALUE) VALUES ($1, $2, $3)`
-		_, err := db.db.ExecContext(ctx, queryStr, k, t, v)
-		if err != nil {
-			return err
-		}
+	_, err := db.db.ExecContext(ctx, queryStr, k, t, v)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -123,10 +136,8 @@ func (db *PostgresDB) SetVal(ctx context.Context, k string, v any) error {
 func (db *PostgresDB) GetVal(ctx context.Context, k string) (any, error) {
 	queryStr := `SELECT TYPE, VALUE FROM metrics WHERE NAME = $1`
 
-	row := db.db.QueryRowxContext(ctx, queryStr, k)
-
 	var m Metric
-	if err := row.StructScan(&m); err != nil {
+	if err := db.db.SelectContext(ctx, &m, queryStr, k); err != nil {
 		return nil, err
 	}
 

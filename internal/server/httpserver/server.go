@@ -220,7 +220,7 @@ func (s *Server) Default(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
-	metrics := new(models.Metrics)
+	metrics := new(models.MetricJSON)
 	if err := json.NewDecoder(r.Body).Decode(metrics); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -278,32 +278,66 @@ func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
-	metrics := new(models.Metrics)
-	if err := json.NewDecoder(r.Body).Decode(metrics); err != nil {
+	metric := new(models.MetricJSON)
+	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	var v any
-	switch metrics.MType {
+	switch metric.MType {
 	case "gauge":
-		v = *(metrics.Value)
+		v = *(metric.Value)
 	case "counter":
-		v = *(metrics.Delta)
+		v = *(metric.Delta)
 	default:
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	if err := s.storage.SetVal(r.Context(), metrics.ID, v); err != nil {
+	if err := s.storage.SetVal(r.Context(), metric.ID, v); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	if s.config.IsFileStorage() && s.config.StoreInt == 0 {
 		s.logger.Infoln("Save current metrics")
 		if err := s.fileStorage.SaveInFile(s.storage); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(&metric); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
+	var metrics []models.MetricJSON
+	if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	metricsDB := make([]storage.MetricsDB, len(metrics))
+	for i, v := range metrics {
+		metricsDB[i].Name = v.ID
+		metricsDB[i].Type = v.MType
+		switch v.MType {
+		case "gauge":
+			metricsDB[i].Val = *v.Value
+		case "counter":
+			metricsDB[i].Val = *v.Delta
+		}
+	}
+
+	if err := s.storage.Update(r.Context(), metricsDB); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
