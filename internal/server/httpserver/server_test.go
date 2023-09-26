@@ -438,3 +438,83 @@ func TestUpdateMetricJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateMetricsBatch(t *testing.T) {
+	storage := &MockStorage{
+		storage: map[string]any{},
+	}
+
+	tests := []struct {
+		name    string
+		method  string
+		request string
+		body    string
+		want    want
+	}{
+		{
+			name:    "test 1, update Metrics by batch",
+			method:  http.MethodPost,
+			request: "/updates/",
+			body: `[{"id": "Metric1", "type": "gauge", "value": 2.5}, 
+			{"id": "Metric2", "type": "gauge", "value": 3.5}]`,
+			want: want{
+				code:        http.StatusOK,
+				contentType: "application/json",
+				body: `[{"id": "Metric1", "type": "gauge", "value": 2.5}, 
+				{"id": "Metric2", "type": "gauge", "value": 3.5}]`,
+			},
+		},
+		{
+			name:    "test 2, update one Metric",
+			method:  http.MethodPost,
+			request: "/updates/",
+			body: `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
+			want: want{
+				code:        http.StatusBadRequest,
+				contentType: "text/plain; charset=utf-8",
+				body: "",
+			},
+		},
+		{
+			name:    "test 3, update Metrics by batch, invalid type",
+			method:  http.MethodPost,
+			request: "/updates/",
+			body: `[{"id": "Metric1", "type": "invalid", "value": 2.5}, 
+			{"id": "Metric2", "type": "gauge", "value": 3.5}]`,
+			want: want{
+				code:        http.StatusBadRequest,
+				contentType: "text/plain; charset=utf-8",
+				body: "",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			route := chi.NewRouter()
+			server := &Server{
+				storage: storage,
+			}
+			route.Post("/updates/", server.UpdateMetricsBatch)
+			s := httptest.NewServer(route)
+			defer s.Close()
+
+			r, err := http.NewRequest(tt.method, s.URL+tt.request, bytes.NewReader([]byte(tt.body)))
+			require.NoError(t, err)
+			r.Header.Set("Content-Type", "application/json")
+			resp, err := s.Client().Do(r)
+			require.NoError(t, err)
+
+			var buf bytes.Buffer
+			buf.ReadFrom(resp.Body)
+
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.want.code, resp.StatusCode)
+			assert.Equal(t, tt.want.contentType, resp.Header.Get("Content-Type"))
+
+			if tt.want.body != "" {
+				assert.JSONEq(t, tt.want.body, buf.String())
+			}
+		})
+	}
+}

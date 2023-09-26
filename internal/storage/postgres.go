@@ -47,7 +47,7 @@ func (db *PostgresDB) CreateTable(ctx context.Context) error {
 }
 
 func (db *PostgresDB) Update(ctx context.Context, v any) error {
-	metrics, ok := v.([]MetricsDB)
+	metrics, ok := v.([]MetricDB)
 	if !ok {
 		return errors.New("invalid type assertion")
 	}
@@ -88,7 +88,7 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 
 	metrics := make(map[string]any)
 	for rows.Next() {
-		var m MetricsDB
+		var m MetricDB
 		if err := rows.StructScan(&m); err != nil {
 			return nil, err
 		}

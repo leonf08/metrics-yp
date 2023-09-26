@@ -1,6 +1,6 @@
 package storage
 
-type MetricsDB struct {
+type MetricDB struct {
 	Name string `json:"name" db:"name"`
 	Metric
 }
