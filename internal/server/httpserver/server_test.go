@@ -460,8 +460,7 @@ func TestUpdateMetricsBatch(t *testing.T) {
 			want: want{
 				code:        http.StatusOK,
 				contentType: "application/json",
-				body: `[{"id": "Metric1", "type": "gauge", "value": 2.5}, 
-				{"id": "Metric2", "type": "gauge", "value": 3.5}]`,
+				body: `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
 			},
 		},
 		{

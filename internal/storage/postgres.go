@@ -52,7 +52,17 @@ func (db *PostgresDB) Update(ctx context.Context, v any) error {
 		return errors.New("invalid type assertion")
 	}
 
-	const queryStr = `UPDATE metrics SET VALUE = $1 WHERE NAME = $2`
+	const queryStr = `
+		INSERT INTO metrics (NAME, TYPE, VALUE)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (NAME) 
+		DO UPDATE SET
+		VALUE = CASE
+			WHEN $2 = 'counter' THEN metrics.VALUE + $3
+			ELSE $3
+		END
+		WHERE metrics.NAME = $1;`
+
 	tx, err := db.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
@@ -68,7 +78,7 @@ func (db *PostgresDB) Update(ctx context.Context, v any) error {
 	defer stmt.Close()
 
 	for _, m := range metrics {
-		_, err := stmt.ExecContext(ctx, m.Val, m.Name)
+		_, err := stmt.ExecContext(ctx, m.Name, m.Type, m.Val)
 		if err != nil {
 			return err
 		}
@@ -113,9 +123,16 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 }
 
 func (db *PostgresDB) SetVal(ctx context.Context, k string, v any) error {
-	const queryStr = `INSERT INTO metrics (NAME, TYPE, VALUE)
-		VALUES ($1, $2, $3) ON CONFLICT (NAME) 
-		DO UPDATE SET VALUE = $3 WHERE metrics.NAME = $1`
+	const queryStr = `
+		INSERT INTO metrics (NAME, TYPE, VALUE)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (NAME) 
+		DO UPDATE SET
+		VALUE = CASE
+			WHEN $2 = 'counter' THEN metrics.VALUE + $3
+			ELSE $3
+		END
+		WHERE metrics.NAME = $1;`
 
 	var t string
 	_, ok := v.(float64)
@@ -137,7 +154,8 @@ func (db *PostgresDB) GetVal(ctx context.Context, k string) (any, error) {
 	queryStr := `SELECT TYPE, VALUE FROM metrics WHERE NAME = $1`
 
 	var m Metric
-	if err := db.db.SelectContext(ctx, &m, queryStr, k); err != nil {
+	row := db.db.QueryRowxContext(ctx, queryStr, k)
+	if err := row.StructScan(&m); err != nil {
 		return nil, err
 	}
 

@@ -132,11 +132,13 @@ func (s *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 		m, ok := val.(storage.Metric)
 		if !ok {
 			http.Error(w, "", http.StatusInternalServerError)
+			return
 		}
 
 		v, ok := m.Val.(float64)
 		if !ok {
 			http.Error(w, "", http.StatusInternalServerError)
+			return
 		}
 
 		vStr = strconv.FormatFloat(v, 'f', -1, 64)
@@ -144,11 +146,13 @@ func (s *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 		m, ok := val.(storage.Metric)
 		if !ok {
 			http.Error(w, "", http.StatusInternalServerError)
+			return
 		}
 
 		v, ok := m.Val.(int64)
 		if !ok {
 			http.Error(w, "", http.StatusInternalServerError)
+			return
 		}
 
 		vStr = strconv.FormatInt(v, 10)
@@ -207,6 +211,7 @@ func (s *Server) Default(w http.ResponseWriter, r *http.Request) {
 	metrics, err := s.storage.ReadAll(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	str := "Metric name - value\r\n"
@@ -237,33 +242,39 @@ func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	m, ok := v.(storage.Metric)
+	if !ok {
+		http.Error(w, "invalid type assertion", http.StatusInternalServerError)
+		return
+	}
+
 	switch metric.MType {
 	case "gauge":
-		m, ok := v.(storage.Metric)
-		if !ok {
-			http.Error(w, "", http.StatusInternalServerError)
-		}
-
 		val, ok := m.Val.(float64)
 		if !ok {
-			http.Error(w, "", http.StatusInternalServerError)
+			http.Error(w, "invalid type assertion", http.StatusInternalServerError)
+			return
 		}
 
 		metric.Value = new(float64)
 		*metric.Value = val
 	case "counter":
-		m, ok := v.(storage.Metric)
-		if !ok {
-			http.Error(w, "", http.StatusInternalServerError)
-		}
-
-		v, ok := m.Val.(int64)
-		if !ok {
-			http.Error(w, "", http.StatusInternalServerError)
+		var val int64
+		varInt, ok := m.Val.(int64)
+		if ok {
+			val = varInt
+		} else {
+			valFloat, ok := m.Val.(float64)
+			if !ok {
+				http.Error(w, "invalid type assertion", http.StatusInternalServerError)
+				return
+			}
+			
+			val = int64(valFloat)
 		}
 
 		metric.Delta = new(int64)
-		*metric.Delta = v
+		*metric.Delta = val
 	default:
 		http.Error(w, "invalid metric type", http.StatusBadRequest)
 		return
@@ -307,7 +318,7 @@ func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
+	
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(metric); err != nil {
@@ -345,7 +356,7 @@ func (s *Server) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(&metrics); err != nil {
+	if err := json.NewEncoder(w).Encode(&metrics[0]); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
