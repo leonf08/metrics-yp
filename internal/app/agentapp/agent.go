@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"runtime"
@@ -41,10 +42,10 @@ func NewAgent(cl *http.Client, st Repository, l logger.Logger, cfg *agentconf.Co
 	}
 }
 
-func (a *Agent) Run() {
+func (a *Agent) Run() error {
 	a.logger.Infoln("Running agent")
 	m := new(runtime.MemStats)
-	url := "http://" + a.config.Addr + "/update"
+	url := "http://" + a.config.Addr + "/updates/"
 
 	pollTime := time.NewTicker(time.Second * time.Duration(a.config.PollInt))
 	reportTime := time.NewTicker(time.Second * time.Duration(a.config.ReportInt))
@@ -53,28 +54,31 @@ func (a *Agent) Run() {
 		select {
 		case <-pollTime.C:
 			runtime.ReadMemStats(m)
-			a.storage.Update(context.Background(), m)
+			if err := a.storage.Update(context.Background(), m); err != nil {
+				return err
+			}
 		case <-reportTime.C:
-			a.sendMetricJSON(url)
+			a.sendMetricBatch(url)
 		}
 	}
 }
 
-func (a *Agent) sendMetricJSON(url string) {
+func (a *Agent) sendMetricJSON(url string) error {
 	var buf bytes.Buffer
 
 	metrics, err := a.storage.ReadAll(context.Background())
 	if err != nil {
-		a.logger.Errorln(err.Error())
-		return
+		a.logger.Errorln(err)
+		return err
 	}
 
 	for name, value := range metrics {
 		metStruct := new(models.MetricJSON)
 		m, ok := value.(storage.Metric)
 		if !ok {
-			a.logger.Errorln("Invalid type")
-			return
+			err := errors.New("invalid type assertion")
+			a.logger.Errorln(err)
+			return err
 		}
 
 		switch v := m.Val.(type) {
@@ -89,25 +93,26 @@ func (a *Agent) sendMetricJSON(url string) {
 			metStruct.Delta = new(int64)
 			*metStruct.Delta = v
 		default:
-			a.logger.Errorln("Invalid type of metric, got:", v)
-			return
+			err := errors.New("invalid metric type")
+			a.logger.Errorln(err)
+			return err
 		}
 
 		gzWriter := gzip.NewWriter(&buf)
 		if err := json.NewEncoder(gzWriter).Encode(&metStruct); err != nil {
-			a.logger.Errorln("Failed to create json", err)
-			return
+			a.logger.Errorln(err)
+			return err
 		}
 
 		if err := gzWriter.Close(); err != nil {
 			a.logger.Errorln(err)
-			return
+			return err
 		}
 
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, &buf)
 		if err != nil {
-			a.logger.Errorln("Failed to create http request", err)
-			return
+			a.logger.Errorln(err)
+			return err
 		}
 
 		req.Header.Set("Content-Type", "application/json")
@@ -117,14 +122,14 @@ func (a *Agent) sendMetricJSON(url string) {
 		a.logger.Infoln("Sending request", "address", url)
 		resp, err := a.client.Do(req)
 		if err != nil {
-			a.logger.Errorln("Failed to send request", err)
-			return
+			a.logger.Errorln(err)
+			return err
 		}
 		defer resp.Body.Close()
 
 		if _, err = buf.ReadFrom(resp.Body); err != nil {
-			a.logger.Errorln("Failed to read response", err)
-			return
+			a.logger.Errorln(err)
+			return err
 		}
 
 		a.logger.Infoln("Response from the server", "status", resp.Status,
@@ -132,44 +137,54 @@ func (a *Agent) sendMetricJSON(url string) {
 
 		buf.Reset()
 	}
+
+	return nil
 }
 
-func (a *Agent) sendMetric(url string) {
+func (a *Agent) sendMetric(url string) error {
 	metrics, err := a.storage.ReadAll(context.Background())
 	if err != nil {
-		a.logger.Errorln(err.Error())
-		return
+		a.logger.Errorln(err)
+		return err
 	}
 
 	for name, value := range metrics {
 		m, ok := value.(storage.Metric)
 		if !ok {
-			a.logger.Fatalln("invalid element type in storage")
+			err := errors.New("invalid type assertion")
+			a.logger.Errorln(err)
+			return err
 		}
 
 		switch m.Type {
 		case "gauge":
 			v, ok := m.Val.(float64)
 			if !ok {
-				a.logger.Fatalln("invalid value type in gauge metric")
+				err := errors.New("invalid value type in gauge metric")
+				a.logger.Errorln(err)
+				return err
 			}
 			val := strconv.FormatFloat(v, 'f', -1, 64)
 			url = strings.Join([]string{url, "gauge", name, val}, "/")
 		case "counter":
 			v, ok := m.Val.(int64)
 			if !ok {
-				a.logger.Fatalln("invalid value type in counter metric")
+				err := errors.New("invalid value type in counter metric")
+				a.logger.Errorln(err)
+				return err
 			}
 			val := strconv.FormatInt(v, 10)
 			url = strings.Join([]string{url, "counter", name, val}, "/")
 		default:
-			a.logger.Fatalln("invalid metric type")
+			err := errors.New("invalid metric type")
+			a.logger.Errorln(err)
+			return err
 		}
 
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, nil)
 		if err != nil {
 			a.logger.Errorln(err)
-			break
+			return err
 		}
 
 		req.Header.Add("Content-Type", "text/plain")
@@ -178,7 +193,7 @@ func (a *Agent) sendMetric(url string) {
 		resp, err := a.client.Do(req)
 		if err != nil {
 			a.logger.Errorln(err)
-			break
+			return err
 		}
 
 		_, err = io.Copy(io.Discard, resp.Body)
@@ -186,6 +201,90 @@ func (a *Agent) sendMetric(url string) {
 
 		if err != nil {
 			a.logger.Errorln(err)
+			return err
 		}
 	}
+
+	return nil
+}
+
+func (a *Agent) sendMetricBatch(url string) error {
+	var buf bytes.Buffer
+
+	metrics, err := a.storage.ReadAll(context.Background())
+	if err != nil {
+		a.logger.Errorln(err)
+		return err
+	}
+
+	metSlice := make([]models.MetricJSON, 0)
+	for name, value := range metrics {
+		metStruct := models.MetricJSON{}
+		m, ok := value.(storage.Metric)
+		if !ok {
+			err := errors.New("invalid type assertion")
+			a.logger.Errorln(err)
+			return err
+		}
+
+		switch v := m.Val.(type) {
+		case float64:
+			metStruct.ID = name
+			metStruct.MType = "gauge"
+			metStruct.Value = new(float64)
+			*metStruct.Value = v
+		case int64:
+			metStruct.ID = name
+			metStruct.MType = "counter"
+			metStruct.Delta = new(int64)
+			*metStruct.Delta = v
+		default:
+			err := errors.New("invalid metric type")
+			a.logger.Errorln(err)
+			return err
+		}
+
+		metSlice = append(metSlice, metStruct)
+	}
+
+	gzWriter := gzip.NewWriter(&buf)
+	if err := json.NewEncoder(gzWriter).Encode(metSlice); err != nil {
+		a.logger.Errorln(err)
+		return err
+	}
+
+	if err := gzWriter.Close(); err != nil {
+		a.logger.Errorln(err)
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, &buf)
+	if err != nil {
+		a.logger.Errorln(err)
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+
+	a.logger.Infoln("Sending request", "address", url)
+	resp, err := a.client.Do(req)
+	if err != nil {
+		a.logger.Errorln(err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	if _, err = buf.ReadFrom(resp.Body); err != nil {
+		a.logger.Errorln(err)
+		return err
+	}
+
+	a.logger.Infoln("Response from the server", "status", resp.Status,
+		"body", buf.String())
+
+	buf.Reset()
+
+	return nil
 }
