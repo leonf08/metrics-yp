@@ -31,3 +31,5 @@ bin/agent/agent
 .gitignore
 bin/server/server
 Makefile
+internal/app/agentapp/agent.go
+statictest

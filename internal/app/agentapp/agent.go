@@ -22,6 +22,8 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
+var errEOF = errors.New("EOF")
+
 type Repository interface {
 	ReadAll(context.Context) (map[string]any, error)
 	Update(context.Context, any) error
@@ -126,12 +128,17 @@ func (a *Agent) sendMetricJSON(url string) error {
 
 		a.logger.Infoln("Sending request", "address", url)
 
-		var resp *http.Response
 		err = errorhandling.Retry(req.Context(), func() (err error) {
-			resp, err = a.client.Do(req)
+			resp, err := a.client.Do(req)
 			var opErr *net.OpError
 			if errors.As(err, &opErr) {
 				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
+				a.logger.Errorln(err)
+				return
+			}
+
+			if errors.Is(err, errEOF) {
+				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, errEOF.Error())
 				a.logger.Errorln(err)
 				return
 			}
@@ -146,6 +153,9 @@ func (a *Agent) sendMetricJSON(url string) error {
 				return errorhandling.ErrRetriable
 			}
 
+			a.logger.Infoln("Response from the server", "status", resp.Status,
+				"body", buf.String())
+
 			if _, err = buf.ReadFrom(resp.Body); err != nil {
 				a.logger.Errorln(err)
 				return
@@ -158,9 +168,6 @@ func (a *Agent) sendMetricJSON(url string) error {
 			a.logger.Errorln(err)
 			return err
 		}
-
-		a.logger.Infoln("Response from the server", "status", resp.Status,
-			"body", buf.String())
 
 		buf.Reset()
 	}
@@ -217,12 +224,17 @@ func (a *Agent) sendMetric(url string) error {
 		req.Header.Add("Content-Type", "text/plain")
 
 		a.logger.Infoln("Sending request", req.URL)
-		var resp *http.Response
 		err = errorhandling.Retry(req.Context(), func() (err error) {
-			resp, err = a.client.Do(req)
+			resp, err := a.client.Do(req)
 			var opErr *net.OpError
 			if errors.As(err, &opErr) {
 				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
+				a.logger.Errorln(err)
+				return
+			}
+
+			if errors.Is(err, errEOF) {
+				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, errEOF.Error())
 				a.logger.Errorln(err)
 				return
 			}
@@ -236,6 +248,8 @@ func (a *Agent) sendMetric(url string) error {
 			if resp.StatusCode > 501 {
 				return errorhandling.ErrRetriable
 			}
+
+			a.logger.Infoln("Response from the server", "status", resp.Status)
 
 			_, err = io.Copy(io.Discard, resp.Body)
 			if err != nil {
@@ -315,12 +329,17 @@ func (a *Agent) sendMetricBatch(url string) error {
 	req.Header.Set("Content-Encoding", "gzip")
 
 	a.logger.Infoln("Sending request", "address", url)
-	var resp *http.Response
 	err = errorhandling.Retry(req.Context(), func() (err error) {
-		resp, err = a.client.Do(req)
+		resp, err := a.client.Do(req)
 		var opErr *net.OpError
 		if errors.As(err, &opErr) {
 			err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
+			a.logger.Errorln(err)
+			return
+		}
+
+		if errors.Is(err, errEOF) {
+			err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, errEOF.Error())
 			a.logger.Errorln(err)
 			return
 		}
@@ -335,6 +354,9 @@ func (a *Agent) sendMetricBatch(url string) error {
 			return errorhandling.ErrRetriable
 		}
 
+		a.logger.Infoln("Response from the server", "status", resp.Status,
+			"body", buf.String())
+
 		if _, err = buf.ReadFrom(resp.Body); err != nil {
 			a.logger.Errorln(err)
 			return
@@ -347,9 +369,6 @@ func (a *Agent) sendMetricBatch(url string) error {
 		a.logger.Errorln(err)
 		return err
 	}
-
-	a.logger.Infoln("Response from the server", "status", resp.Status,
-		"body", buf.String())
 
 	buf.Reset()
 
