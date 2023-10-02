@@ -116,19 +116,23 @@ func (a *Agent) sendMetricJSON(url string) error {
 			return err
 		}
 
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, &buf)
-		if err != nil {
-			a.logger.Errorln(err)
-			return err
-		}
+		r := bytes.NewReader(buf.Bytes())
+		ctx := context.Background()
 
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("Content-Encoding", "gzip")
+		err = errorhandling.Retry(ctx, func() (err error) {
+			r.Seek(0, 0)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, r)
+			if err != nil {
+				a.logger.Errorln(err)
+				return
+			}
 
-		a.logger.Infoln("Sending request", "address", url)
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json")
+			req.Header.Set("Content-Encoding", "gzip")
 
-		err = errorhandling.Retry(req.Context(), func() (err error) {
+			a.logger.Infoln("Sending request", "address", url)
+
 			resp, err := a.client.Do(req)
 			var opErr *net.OpError
 			if errors.As(err, &opErr) {
@@ -318,18 +322,23 @@ func (a *Agent) sendMetricBatch(url string) error {
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, &buf)
-	if err != nil {
-		a.logger.Errorln(err)
-		return err
-	}
+	r := bytes.NewReader(buf.Bytes())
+	ctx := context.Background()
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Encoding", "gzip")
+	err = errorhandling.Retry(ctx, func() (err error) {
+		r.Seek(0, 0)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, r)
+		if err != nil {
+			a.logger.Errorln(err)
+			return
+		}
 
-	a.logger.Infoln("Sending request", "address", url)
-	err = errorhandling.Retry(req.Context(), func() (err error) {
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Content-Encoding", "gzip")
+
+		a.logger.Infoln("Sending request", "address", url)
+
 		resp, err := a.client.Do(req)
 		var opErr *net.OpError
 		if errors.As(err, &opErr) {
