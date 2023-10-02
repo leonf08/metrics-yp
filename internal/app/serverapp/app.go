@@ -94,7 +94,7 @@ func getConfig() (*serverconf.Config, error) {
 	address := flag.String("a", ":8080", "Host address of the server")
 	storeInt := flag.Int("i", 300, "Store interval for the metrics")
 	filePath := flag.String("f", "tmp/metrics-db.json", "Path to file for metrics storage")
-	dbAddr := flag.String("d", "postgresql://leo:1111@localhost:5432/metrics?sslmode=disable", "Database address")
+	dbAddr := flag.String("d", "", "Database address")
 	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")
 	flag.Parse()
 

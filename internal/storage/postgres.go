@@ -125,7 +125,7 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 	var rows *sqlx.Rows
 	err := errorhandling.Retry(ctx, func() error {
 		var err error
-		rows, err = db.db.QueryxContext(ctx, queryStr)
+		r, err := db.db.QueryxContext(ctx, queryStr)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) &&
@@ -135,7 +135,9 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 			}
 		}
 
-		return err
+		rows = r
+
+		return r.Err()
 	})
 
 	if err != nil {
@@ -162,8 +164,7 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 		metrics[m.Name] = m.Metric
 	}
 
-	err = rows.Err()
-	if err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
