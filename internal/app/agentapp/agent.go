@@ -48,7 +48,7 @@ func NewAgent(cl *http.Client, st Repository, l logger.Logger, cfg *agentconf.Co
 func (a *Agent) Run() error {
 	a.logger.Infoln("Running agent")
 	m := new(runtime.MemStats)
-	url := "http://" + a.config.Addr + "/update/"
+	url := "http://" + a.config.Addr + "/update"
 
 	pollTime := time.NewTicker(time.Second * time.Duration(a.config.PollInt))
 	reportTime := time.NewTicker(time.Second * time.Duration(a.config.ReportInt))
@@ -139,8 +139,6 @@ func (a *Agent) sendMetricJSON(url string) error {
 			if err != nil {
 				return err
 			}
-
-			defer r.Body.Close()
 
 			if r.StatusCode > 501 {
 				err = errorhandling.ErrRetriable
