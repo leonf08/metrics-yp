@@ -448,6 +448,7 @@ func (s *Server) CompressMiddleware(next http.Handler) http.Handler {
 			if sendsGzip {
 				cr, err := newCompressReader(r.Body)
 				if err != nil {
+					s.logger.Errorln(err)
 					ow.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -467,6 +468,7 @@ func (s *Server) RegisterHandler(h http.Handler) {
 func (s *Server) WithFileStorage() error {
 	f, err := storage.NewFileStorage(s.config.FileStoragePath)
 	if err != nil {
+		s.logger.Errorln(err)
 		return err
 	}
 

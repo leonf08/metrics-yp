@@ -22,8 +22,6 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/storage"
 )
 
-var errEOF = errors.New("EOF")
-
 type Repository interface {
 	ReadAll(context.Context) (map[string]any, error)
 	Update(context.Context, any) error
@@ -141,35 +139,38 @@ func (a *Agent) sendMetricJSON(url string) error {
 				return
 			}
 
-			if errors.Is(err, errEOF) {
-				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, errEOF.Error())
+			if errors.Is(err, io.EOF) {
+				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, io.EOF.Error())
 				a.logger.Errorln(err)
 				return
 			}
 
 			if err != nil {
+				a.logger.Errorln(err)
 				return
 			}
 
 			defer resp.Body.Close()
 
 			if resp.StatusCode > 501 {
-				return errorhandling.ErrRetriable
+				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, resp.Status)
+				a.logger.Errorln(err)
+				return
+			}
+
+			buf.Reset()
+			if _, err = buf.ReadFrom(resp.Body); err != nil {
+				a.logger.Errorln(resp.Status, err)
+				return
 			}
 
 			a.logger.Infoln("Response from the server", "status", resp.Status,
 				"body", buf.String())
 
-			if _, err = buf.ReadFrom(resp.Body); err != nil {
-				a.logger.Errorln(err)
-				return
-			}
-
 			return
 		})
 
 		if err != nil {
-			a.logger.Errorln(err)
 			return err
 		}
 
@@ -237,8 +238,8 @@ func (a *Agent) sendMetric(url string) error {
 				return
 			}
 
-			if errors.Is(err, errEOF) {
-				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, errEOF.Error())
+			if errors.Is(err, io.EOF) {
+				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, io.EOF.Error())
 				a.logger.Errorln(err)
 				return
 			}
@@ -347,8 +348,8 @@ func (a *Agent) sendMetricBatch(url string) error {
 			return
 		}
 
-		if errors.Is(err, errEOF) {
-			err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, errEOF.Error())
+		if errors.Is(err, io.EOF) {
+			err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, io.EOF.Error())
 			a.logger.Errorln(err)
 			return
 		}
@@ -363,13 +364,14 @@ func (a *Agent) sendMetricBatch(url string) error {
 			return errorhandling.ErrRetriable
 		}
 
-		a.logger.Infoln("Response from the server", "status", resp.Status,
-			"body", buf.String())
-
+		buf.Reset()
 		if _, err = buf.ReadFrom(resp.Body); err != nil {
 			a.logger.Errorln(err)
 			return
 		}
+
+		a.logger.Infoln("Response from the server", "status", resp.Status,
+			"body", buf.String())
 
 		return
 	})
