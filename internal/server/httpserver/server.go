@@ -123,6 +123,7 @@ func (s *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 
 	val, err := s.storage.GetVal(r.Context(), name)
 	if err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -131,12 +132,14 @@ func (s *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 	case "gauge":
 		m, ok := val.(storage.Metric)
 		if !ok {
+			s.logger.Errorln("invalid type assertion")
 			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
 
 		v, ok := m.Val.(float64)
 		if !ok {
+			s.logger.Errorln("invalid type assertion")
 			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
@@ -145,18 +148,21 @@ func (s *Server) GetMetric(w http.ResponseWriter, r *http.Request) {
 	case "counter":
 		m, ok := val.(storage.Metric)
 		if !ok {
+			s.logger.Errorln("invalid type assertion")
 			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
 
 		v, ok := m.Val.(int64)
 		if !ok {
+			s.logger.Errorln("invalid type assertion")
 			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
 
 		vStr = strconv.FormatInt(v, 10)
 	default:
+		s.logger.Errorln("invalid metric type")
 		http.Error(w, "invalid metric type", http.StatusBadRequest)
 		return
 	}
@@ -174,26 +180,31 @@ func (s *Server) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	case "gauge":
 		v, err := strconv.ParseFloat(val, 64)
 		if err != nil {
+			s.logger.Errorln(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		if err = s.storage.SetVal(r.Context(), name, v); err != nil {
+			s.logger.Errorln(err)
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 	case "counter":
 		v, err := strconv.ParseInt(val, 0, 64)
 		if err != nil {
+			s.logger.Errorln(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		if err = s.storage.SetVal(r.Context(), name, v); err != nil {
+			s.logger.Errorln(err)
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 	default:
+		s.logger.Errorln("invalid metric type")
 		http.Error(w, "invalid metric type", http.StatusBadRequest)
 		return
 	}
@@ -204,12 +215,14 @@ func (s *Server) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) Default(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		s.logger.Errorln("bad request")
+		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
 	metrics, err := s.storage.ReadAll(r.Context())
 	if err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -227,24 +240,28 @@ func (s *Server) Default(w http.ResponseWriter, r *http.Request) {
 func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 	metric := new(models.MetricJSON)
 	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if metric.ID == "" {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		s.logger.Errorln("bad request")
+		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 
 	v, err := s.storage.GetVal(r.Context(), metric.ID)
 	if err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	m, ok := v.(storage.Metric)
 	if !ok {
-		http.Error(w, "invalid type assertion", http.StatusInternalServerError)
+		s.logger.Errorln("invalid type assertion")
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
@@ -252,7 +269,8 @@ func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 	case "gauge":
 		val, ok := m.Val.(float64)
 		if !ok {
-			http.Error(w, "invalid type assertion", http.StatusInternalServerError)
+			s.logger.Errorln("invalid type assertion")
+			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
 
@@ -266,7 +284,8 @@ func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 		} else {
 			valFloat, ok := m.Val.(float64)
 			if !ok {
-				http.Error(w, "invalid type assertion", http.StatusInternalServerError)
+				s.logger.Errorln("invalid type assertion")
+				http.Error(w, "", http.StatusInternalServerError)
 				return
 			}
 			
@@ -276,6 +295,7 @@ func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 		metric.Delta = new(int64)
 		*metric.Delta = val
 	default:
+		s.logger.Errorln("invalid metric type")
 		http.Error(w, "invalid metric type", http.StatusBadRequest)
 		return
 	}
@@ -283,6 +303,7 @@ func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err = json.NewEncoder(w).Encode(metric); err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -291,6 +312,7 @@ func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 	metric := new(models.MetricJSON)
 	if err := json.NewDecoder(r.Body).Decode(metric); err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -302,11 +324,13 @@ func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 	case "counter":
 		v = *(metric.Delta)
 	default:
+		s.logger.Errorln("invalid metric type")
 		http.Error(w, "invalid metric type", http.StatusBadRequest)
 		return
 	}
 
 	if err := s.storage.SetVal(r.Context(), metric.ID, v); err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -314,6 +338,7 @@ func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 	if s.config.IsFileStorage() && s.config.StoreInt == 0 {
 		s.logger.Infoln("Save current metrics")
 		if err := s.fileStorage.SaveInFile(s.storage); err != nil {
+			s.logger.Errorln(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -322,6 +347,7 @@ func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(metric); err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -330,6 +356,7 @@ func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 func (s *Server) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
 	metrics := make([]models.MetricJSON, 0)
 	if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -344,12 +371,14 @@ func (s *Server) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
 		case "counter":
 			metricsDB[i].Val = *v.Delta
 		default:
+			s.logger.Errorln("invalid metric type")
 			http.Error(w, "invalid metric type", http.StatusBadRequest)
 			return
 		}
 	}
 
 	if err := s.storage.Update(r.Context(), metricsDB); err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -357,6 +386,7 @@ func (s *Server) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(&metrics[0]); err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -365,11 +395,12 @@ func (s *Server) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PingDB(w http.ResponseWriter, r *http.Request) {
 	p, ok := s.storage.(Pinger)
 	if !ok {
-		http.Error(w, "not implemented", http.StatusInternalServerError)
+		http.Error(w, "not implemented", http.StatusNotImplemented)
 		return
 	}
 
 	if err := p.Ping(); err != nil {
+		s.logger.Errorln(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"runtime"
 	"strconv"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
+	"github.com/leonf08/metrics-yp.git/internal/errorhandling"
 	"github.com/leonf08/metrics-yp.git/internal/models"
 	"github.com/leonf08/metrics-yp.git/internal/server/logger"
 	"github.com/leonf08/metrics-yp.git/internal/storage"
@@ -58,7 +61,9 @@ func (a *Agent) Run() error {
 				return err
 			}
 		case <-reportTime.C:
-			a.sendMetricBatch(url)
+			if err := a.sendMetricJSON(url); err != nil {
+				return err
+			}
 		}
 	}
 }
@@ -120,17 +125,39 @@ func (a *Agent) sendMetricJSON(url string) error {
 		req.Header.Set("Content-Encoding", "gzip")
 
 		a.logger.Infoln("Sending request", "address", url)
-		resp, err := a.client.Do(req)
+
+		var resp *http.Response
+		err = errorhandling.Retry(req.Context(), func() error {
+			resp, err := a.client.Do(req)
+			var opErr *net.OpError
+			if errors.As(err, &opErr) {
+				err = fmt.Errorf("%w: %s", errorhandling.RetriableError, opErr.Error())
+				a.logger.Errorln(err)
+				return err
+			}
+
+			if err != nil {
+				return err
+			}
+
+			if resp.StatusCode > 501 {
+				err = errorhandling.RetriableError
+			}
+
+			return err
+		})
+		
 		if err != nil {
 			a.logger.Errorln(err)
 			return err
 		}
-		defer resp.Body.Close()
 
 		if _, err = buf.ReadFrom(resp.Body); err != nil {
 			a.logger.Errorln(err)
 			return err
 		}
+
+		resp.Body.Close()
 
 		a.logger.Infoln("Response from the server", "status", resp.Status,
 			"body", buf.String())
@@ -190,7 +217,20 @@ func (a *Agent) sendMetric(url string) error {
 		req.Header.Add("Content-Type", "text/plain")
 
 		a.logger.Infoln("Sending request", req.URL)
-		resp, err := a.client.Do(req)
+		var resp *http.Response
+		err = errorhandling.Retry(req.Context(), func() error {
+			resp, err := a.client.Do(req)
+			if err != nil {
+				return err
+			}
+
+			if resp.StatusCode > 501 {
+				err = errorhandling.RetriableError
+			}
+
+			return err
+		})
+
 		if err != nil {
 			a.logger.Errorln(err)
 			return err
@@ -269,7 +309,19 @@ func (a *Agent) sendMetricBatch(url string) error {
 	req.Header.Set("Content-Encoding", "gzip")
 
 	a.logger.Infoln("Sending request", "address", url)
-	resp, err := a.client.Do(req)
+	var resp *http.Response
+	err = errorhandling.Retry(req.Context(), func() error {
+		resp, err := a.client.Do(req)
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode > 501 {
+			err = errorhandling.RetriableError
+		}
+
+		return err
+	})
 	if err != nil {
 		a.logger.Errorln(err)
 		return err

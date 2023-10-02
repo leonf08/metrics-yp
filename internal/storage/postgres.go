@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
+	"github.com/leonf08/metrics-yp.git/internal/errorhandling"
 )
 
 type PostgresDB struct {
@@ -39,11 +42,22 @@ func (db *PostgresDB) CreateTable(ctx context.Context) error {
 			value DOUBLE PRECISION
 		)
 	`
-	if _, err := db.db.ExecContext(ctx, queryStr); err != nil {
-		return err
-	}
 
-	return nil
+	err := errorhandling.Retry(ctx, func() error {
+		_, err := db.db.ExecContext(ctx, queryStr)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) &&
+				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
+					pgerrcode.IsConnectionException(pgErr.Code)) {
+						err = errorhandling.RetriableError
+			}
+		}
+
+		return err
+	})
+	
+	return err
 }
 
 func (db *PostgresDB) Update(ctx context.Context, v any) error {
@@ -63,37 +77,71 @@ func (db *PostgresDB) Update(ctx context.Context, v any) error {
 		END
 		WHERE metrics.NAME = $1;`
 
-	tx, err := db.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	defer tx.Rollback()
-
-	stmt, err := tx.PreparexContext(ctx, queryStr)
-	if err != nil {
-		return err
-	}
-
-	defer stmt.Close()
-
-	for _, m := range metrics {
-		_, err := stmt.ExecContext(ctx, m.Name, m.Type, m.Val)
+	fn := func () error {
+		tx, err := db.db.BeginTxx(ctx, nil)
 		if err != nil {
 			return err
 		}
+
+		defer tx.Rollback()
+
+		stmt, err := tx.PreparexContext(ctx, queryStr)
+		if err != nil {
+			return err
+		}
+
+		defer stmt.Close()
+
+		for _, m := range metrics {
+			_, err := stmt.ExecContext(ctx, m.Name, m.Type, m.Val)
+			if err != nil {
+				return err
+			}
+		}
+
+		return tx.Commit()
 	}
 
-	return tx.Commit()
+	err := errorhandling.Retry(ctx, func() error {
+		err := fn()
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) &&
+				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
+					pgerrcode.IsConnectionException(pgErr.Code)) {
+						err = errorhandling.RetriableError
+			}
+		}
+
+		return err
+	})
+
+	return err
 }
 
 func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 	const queryStr = `SELECT * FROM metrics`
 
-	rows, err := db.db.QueryxContext(ctx, queryStr)
+	var rows *sqlx.Rows
+	err := errorhandling.Retry(ctx, func() error {
+		var err error
+		rows, err = db.db.QueryxContext(ctx, queryStr)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) &&
+				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
+					pgerrcode.IsConnectionException(pgErr.Code)) {
+						err = errorhandling.RetriableError
+			}
+		}
+
+		return err
+	})
+
 	if err != nil {
 		return nil, err
 	}
+	
 	defer rows.Close()
 
 	metrics := make(map[string]any)
@@ -142,22 +190,42 @@ func (db *PostgresDB) SetVal(ctx context.Context, k string, v any) error {
 		t = "counter"
 	}
 
-	_, err := db.db.ExecContext(ctx, queryStr, k, t, v)
-	if err != nil {
-		return err
-	}
+	err := errorhandling.Retry(ctx, func() error {
+		_, err := db.db.ExecContext(ctx, queryStr, k, t, v)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) &&
+				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
+					pgerrcode.IsConnectionException(pgErr.Code)) {
+						err = errorhandling.RetriableError
+			}
+		}
 
-	return nil
+		return err
+	})
+	
+	return err
 }
 
 func (db *PostgresDB) GetVal(ctx context.Context, k string) (any, error) {
 	queryStr := `SELECT TYPE, VALUE FROM metrics WHERE NAME = $1`
 
 	var m Metric
-	row := db.db.QueryRowxContext(ctx, queryStr, k)
-	if err := row.StructScan(&m); err != nil {
-		return nil, err
-	}
 
-	return m, nil
+	err := errorhandling.Retry(ctx, func() error {
+		row := db.db.QueryRowxContext(ctx, queryStr, k)
+		err := row.StructScan(&m)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) &&
+				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
+					pgerrcode.IsConnectionException(pgErr.Code)) {
+						err = errorhandling.RetriableError
+			}
+		}
+
+		return err
+	})
+
+	return m, err
 }
