@@ -127,39 +127,37 @@ func (a *Agent) sendMetricJSON(url string) error {
 		a.logger.Infoln("Sending request", "address", url)
 
 		var resp *http.Response
-		err = errorhandling.Retry(req.Context(), func() error {
-			r, err := a.client.Do(req)
+		err = errorhandling.Retry(req.Context(), func() (err error) {
+			resp, err = a.client.Do(req)
 			var opErr *net.OpError
 			if errors.As(err, &opErr) {
 				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
 				a.logger.Errorln(err)
-				return err
+				return
 			}
 
 			if err != nil {
-				return err
+				return
 			}
 
-			if r.StatusCode > 501 {
-				err = errorhandling.ErrRetriable
+			defer resp.Body.Close()
+
+			if resp.StatusCode > 501 {
+				return errorhandling.ErrRetriable
 			}
 
-			resp = r
+			if _, err = buf.ReadFrom(resp.Body); err != nil {
+				a.logger.Errorln(err)
+				return
+			}
 
-			return err
+			return
 		})
 
 		if err != nil {
 			a.logger.Errorln(err)
 			return err
 		}
-
-		if _, err = buf.ReadFrom(resp.Body); err != nil {
-			a.logger.Errorln(err)
-			return err
-		}
-
-		resp.Body.Close()
 
 		a.logger.Infoln("Response from the server", "status", resp.Status,
 			"body", buf.String())
@@ -220,37 +218,32 @@ func (a *Agent) sendMetric(url string) error {
 
 		a.logger.Infoln("Sending request", req.URL)
 		var resp *http.Response
-		err = errorhandling.Retry(req.Context(), func() error {
-			r, err := a.client.Do(req)
+		err = errorhandling.Retry(req.Context(), func() (err error) {
+			resp, err = a.client.Do(req)
 			var opErr *net.OpError
 			if errors.As(err, &opErr) {
 				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
 				a.logger.Errorln(err)
-				return err
+				return
 			}
 
 			if err != nil {
-				return err
+				return
 			}
 
-			defer r.Body.Close()
+			defer resp.Body.Close()
 
-			if r.StatusCode > 501 {
-				err = errorhandling.ErrRetriable
+			if resp.StatusCode > 501 {
+				return errorhandling.ErrRetriable
 			}
 
-			resp = r
+			_, err = io.Copy(io.Discard, resp.Body)
+			if err != nil {
+				return
+			}
 
-			return err
+			return
 		})
-
-		if err != nil {
-			a.logger.Errorln(err)
-			return err
-		}
-
-		_, err = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
 
 		if err != nil {
 			a.logger.Errorln(err)
@@ -323,37 +316,34 @@ func (a *Agent) sendMetricBatch(url string) error {
 
 	a.logger.Infoln("Sending request", "address", url)
 	var resp *http.Response
-	err = errorhandling.Retry(req.Context(), func() error {
-		r, err := a.client.Do(req)
+	err = errorhandling.Retry(req.Context(), func() (err error) {
+		resp, err = a.client.Do(req)
 		var opErr *net.OpError
 		if errors.As(err, &opErr) {
 			err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
 			a.logger.Errorln(err)
-			return err
+			return
 		}
 
 		if err != nil {
-			return err
+			return
 		}
 
-		defer r.Body.Close()
+		defer resp.Body.Close()
 
-		if r.StatusCode > 501 {
-			err = errorhandling.ErrRetriable
+		if resp.StatusCode > 501 {
+			return errorhandling.ErrRetriable
 		}
 
-		resp = r
+		if _, err = buf.ReadFrom(resp.Body); err != nil {
+			a.logger.Errorln(err)
+			return
+		}
 
-		return err
+		return
 	})
-	
-	if err != nil {
-		a.logger.Errorln(err)
-		return err
-	}
-	defer resp.Body.Close()
 
-	if _, err = buf.ReadFrom(resp.Body); err != nil {
+	if err != nil {
 		a.logger.Errorln(err)
 		return err
 	}
