@@ -132,7 +132,10 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
 					pgerrcode.IsConnectionException(pgErr.Code)) {
 				err = errorhandling.ErrRetriable
+				return err
 			}
+
+			return err
 		}
 
 		rows = r

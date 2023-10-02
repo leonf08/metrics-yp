@@ -76,6 +76,12 @@ func (m *MockStorage) SetVal(ctx context.Context, k string, v any) error {
 	return nil
 }
 
+type moclLogger struct {}
+
+func (m moclLogger) Infoln(args ...any) {}
+func (m moclLogger) Errorln(args ...any) {}
+func (m moclLogger) Fatalln(args ...any) {}
+
 func TestGetMetric(t *testing.T) {
 	storage := &MockStorage{
 		storage: map[string]any{
@@ -137,6 +143,7 @@ func TestGetMetric(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
 				storage: storage,
+				logger: moclLogger{},
 			}
 			route.Get("/value/{type}/{name}", server.GetMetric)
 			s := httptest.NewServer(route)
@@ -199,6 +206,7 @@ func TestUpdateMetric(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
 				storage: storage,
+				logger: moclLogger{},
 			}
 			route.Post("/update/{type}/{name}/{val}", server.UpdateMetric)
 			s := httptest.NewServer(route)
@@ -261,6 +269,7 @@ func TestDefaultHandler(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
 				storage: storage,
+				logger: moclLogger{},
 			}
 			route.Get("/", server.Default)
 			route.Post("/", server.Default)
@@ -324,7 +333,7 @@ func TestGetMetricJSON(t *testing.T) {
 			},
 		},
 		{
-			name:    "test 3, get unkown Metric3",
+			name:    "test 3, get unknown Metric3",
 			method:  http.MethodPost,
 			request: "/value/",
 			body:    `{"id": "Metric3", "type": "counter"}`,
@@ -340,6 +349,7 @@ func TestGetMetricJSON(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
 				storage: storage,
+				logger: moclLogger{},
 			}
 			route.Route("/value", func(r chi.Router) {
 				r.Post("/", server.GetMetricJSON)
@@ -402,6 +412,17 @@ func TestUpdateMetricJSON(t *testing.T) {
 				body:        `{"id": "Metric1", "type": "gauge", "value": 3.5}`,
 			},
 		},
+		{
+			name:    "test 3, update unknown Metric2",
+			method:  http.MethodPost,
+			request: "/value/",
+			body:    `{"id": "Metric2", "type": "gauge", "value": 3.5}`,
+			want: want{
+				code:        http.StatusNotFound,
+				contentType: "text/plain; charset=utf-8",
+				body:        "",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -411,6 +432,7 @@ func TestUpdateMetricJSON(t *testing.T) {
 				config: &serverconf.Config{
 					StoreInt: 1,
 				},
+				logger: moclLogger{},
 			}
 			route.Route("/update", func(r chi.Router) {
 				r.Post("/", server.UpdateMetricJSON)
@@ -492,6 +514,7 @@ func TestUpdateMetricsBatch(t *testing.T) {
 			route := chi.NewRouter()
 			server := &Server{
 				storage: storage,
+				logger: moclLogger{},
 			}
 			route.Post("/updates/", server.UpdateMetricsBatch)
 			s := httptest.NewServer(route)
