@@ -126,9 +126,9 @@ func (a *Agent) sendMetricJSON(url string) error {
 
 		a.logger.Infoln("Sending request", "address", url)
 
-		resp := new(http.Response)
+		var resp *http.Response
 		err = errorhandling.Retry(req.Context(), func() error {
-			resp, err := a.client.Do(req)
+			resp, err = a.client.Do(req)
 			var opErr *net.OpError
 			if errors.As(err, &opErr) {
 				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
@@ -219,7 +219,7 @@ func (a *Agent) sendMetric(url string) error {
 		a.logger.Infoln("Sending request", req.URL)
 		var resp *http.Response
 		err = errorhandling.Retry(req.Context(), func() error {
-			resp, err := a.client.Do(req)
+			resp, err = a.client.Do(req)
 			if err != nil {
 				return err
 			}
@@ -311,7 +311,7 @@ func (a *Agent) sendMetricBatch(url string) error {
 	a.logger.Infoln("Sending request", "address", url)
 	var resp *http.Response
 	err = errorhandling.Retry(req.Context(), func() error {
-		resp, err := a.client.Do(req)
+		resp, err = a.client.Do(req)
 		if err != nil {
 			return err
 		}
