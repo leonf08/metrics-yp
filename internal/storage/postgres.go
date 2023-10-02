@@ -50,13 +50,13 @@ func (db *PostgresDB) CreateTable(ctx context.Context) error {
 			if errors.As(err, &pgErr) &&
 				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
 					pgerrcode.IsConnectionException(pgErr.Code)) {
-						err = errorhandling.RetriableError
+				err = errorhandling.ErrRetriable
 			}
 		}
 
 		return err
 	})
-	
+
 	return err
 }
 
@@ -77,7 +77,7 @@ func (db *PostgresDB) Update(ctx context.Context, v any) error {
 		END
 		WHERE metrics.NAME = $1;`
 
-	fn := func () error {
+	fn := func() error {
 		tx, err := db.db.BeginTxx(ctx, nil)
 		if err != nil {
 			return err
@@ -109,7 +109,7 @@ func (db *PostgresDB) Update(ctx context.Context, v any) error {
 			if errors.As(err, &pgErr) &&
 				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
 					pgerrcode.IsConnectionException(pgErr.Code)) {
-						err = errorhandling.RetriableError
+				err = errorhandling.ErrRetriable
 			}
 		}
 
@@ -131,7 +131,7 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 			if errors.As(err, &pgErr) &&
 				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
 					pgerrcode.IsConnectionException(pgErr.Code)) {
-						err = errorhandling.RetriableError
+				err = errorhandling.ErrRetriable
 			}
 		}
 
@@ -141,7 +141,7 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	defer rows.Close()
 
 	metrics := make(map[string]any)
@@ -197,13 +197,13 @@ func (db *PostgresDB) SetVal(ctx context.Context, k string, v any) error {
 			if errors.As(err, &pgErr) &&
 				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
 					pgerrcode.IsConnectionException(pgErr.Code)) {
-						err = errorhandling.RetriableError
+				err = errorhandling.ErrRetriable
 			}
 		}
 
 		return err
 	})
-	
+
 	return err
 }
 
@@ -220,7 +220,7 @@ func (db *PostgresDB) GetVal(ctx context.Context, k string) (any, error) {
 			if errors.As(err, &pgErr) &&
 				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
 					pgerrcode.IsConnectionException(pgErr.Code)) {
-						err = errorhandling.RetriableError
+				err = errorhandling.ErrRetriable
 			}
 		}
 

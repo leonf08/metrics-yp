@@ -48,7 +48,7 @@ func NewAgent(cl *http.Client, st Repository, l logger.Logger, cfg *agentconf.Co
 func (a *Agent) Run() error {
 	a.logger.Infoln("Running agent")
 	m := new(runtime.MemStats)
-	url := "http://" + a.config.Addr + "/updates/"
+	url := "http://" + a.config.Addr + "/update/"
 
 	pollTime := time.NewTicker(time.Second * time.Duration(a.config.PollInt))
 	reportTime := time.NewTicker(time.Second * time.Duration(a.config.ReportInt))
@@ -126,12 +126,12 @@ func (a *Agent) sendMetricJSON(url string) error {
 
 		a.logger.Infoln("Sending request", "address", url)
 
-		var resp *http.Response
+		resp := new(http.Response)
 		err = errorhandling.Retry(req.Context(), func() error {
 			resp, err := a.client.Do(req)
 			var opErr *net.OpError
 			if errors.As(err, &opErr) {
-				err = fmt.Errorf("%w: %s", errorhandling.RetriableError, opErr.Error())
+				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
 				a.logger.Errorln(err)
 				return err
 			}
@@ -141,12 +141,12 @@ func (a *Agent) sendMetricJSON(url string) error {
 			}
 
 			if resp.StatusCode > 501 {
-				err = errorhandling.RetriableError
+				err = errorhandling.ErrRetriable
 			}
 
 			return err
 		})
-		
+
 		if err != nil {
 			a.logger.Errorln(err)
 			return err
@@ -225,7 +225,7 @@ func (a *Agent) sendMetric(url string) error {
 			}
 
 			if resp.StatusCode > 501 {
-				err = errorhandling.RetriableError
+				err = errorhandling.ErrRetriable
 			}
 
 			return err
@@ -317,7 +317,7 @@ func (a *Agent) sendMetricBatch(url string) error {
 		}
 
 		if resp.StatusCode > 501 {
-			err = errorhandling.RetriableError
+			err = errorhandling.ErrRetriable
 		}
 
 		return err

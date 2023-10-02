@@ -7,22 +7,22 @@ import (
 	"time"
 )
 
-var RetriableError = errors.New("retriable error")
+var ErrRetriable = errors.New("retriable error")
 
 const (
-	attempts = 3
+	attempts   = 3
 	difference = 2 * time.Second
 )
 
 func isRetriable(err error) bool {
-	return errors.Is(err, RetriableError)
+	return errors.Is(err, ErrRetriable)
 }
 
 func Retry(ctx context.Context, f func() error) error {
 	var (
-		try int
-		delay time.Duration = time.Second
-		err error
+		try   int
+		delay = time.Second
+		err   error
 	)
 
 	for try <= attempts {
@@ -42,9 +42,9 @@ func Retry(ctx context.Context, f func() error) error {
 		ticker := time.NewTicker(delay)
 
 		select {
-		case <- ctx.Done():
+		case <-ctx.Done():
 			return err
-		case <- ticker.C:
+		case <-ticker.C:
 			delay += difference
 			try++
 		}
