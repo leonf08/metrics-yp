@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leonf08/metrics-yp.git/internal/auth"
 	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
 	"github.com/leonf08/metrics-yp.git/internal/errorhandling"
 	"github.com/leonf08/metrics-yp.git/internal/models"
@@ -128,6 +130,17 @@ func (a *Agent) sendMetricJSON(url string) error {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", "application/json")
 			req.Header.Set("Content-Encoding", "gzip")
+
+			if a.config.IsAuthKeyExists() {
+				var hash []byte
+				hash, err = auth.CalcHash(buf.Bytes(), []byte(a.config.Key))
+				if err != nil {
+					a.logger.Errorln(err)
+					return
+				}
+
+				req.Header.Set("HashSHA256", hex.EncodeToString(hash))
+			}
 
 			a.logger.Infoln("Sending request", "address", url)
 
@@ -339,6 +352,17 @@ func (a *Agent) sendMetricBatch(url string) error {
 		req.Header.Set("Content-Encoding", "gzip")
 
 		a.logger.Infoln("Sending request", "address", url)
+
+		if a.config.IsAuthKeyExists() {
+			var hash []byte
+			hash, err = auth.CalcHash(buf.Bytes(), []byte(a.config.Key))
+			if err != nil {
+				a.logger.Errorln(err)
+				return
+			}
+
+			req.Header.Set("HashSHA256", hex.EncodeToString(hash))
+		}
 
 		resp, err := a.client.Do(req)
 		var opErr *net.OpError

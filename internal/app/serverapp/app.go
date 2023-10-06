@@ -36,7 +36,7 @@ func StartApp() error {
 		})
 	})
 
-	handler := server.LoggingMiddleware(server.CompressMiddleware(router))
+	handler := server.LoggingMiddleware(server.AuthMiddleware(server.CompressMiddleware(router)))
 	server.RegisterHandler(handler)
 
 	return server.Run()
@@ -59,10 +59,7 @@ func initServer() (*httpserver.Server, error) {
 		return nil, err
 	}
 
-	s, err := httpserver.NewServer(repo, config, log)
-	if err != nil {
-		return nil, err
-	}
+	s := httpserver.NewServer(repo, config, log)
 
 	if config.IsFileStorage() {
 		err = s.WithFileStorage()
@@ -96,9 +93,10 @@ func getConfig() (*serverconf.Config, error) {
 	filePath := flag.String("f", "tmp/metrics-db.json", "Path to file for metrics storage")
 	dbAddr := flag.String("d", "", "Database address")
 	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")
+	key := flag.String("k", "", "Authentification key")
 	flag.Parse()
 
-	cfg := serverconf.NewConfig(*storeInt, *address, *filePath, *dbAddr, *restore)
+	cfg := serverconf.NewConfig(*storeInt, *address, *filePath, *dbAddr, *key, *restore)
 	if err := env.Parse(cfg); err != nil {
 		return nil, err
 	}

@@ -22,9 +22,10 @@ func StartApp() error {
 	address := flag.String("a", "localhost:8080", "Host address of the server")
 	reportInt := flag.Int("r", 10, "Report interval to server")
 	pollInt := flag.Int("p", 2, "Poll interval for metrics")
+	key := flag.String("k", "", "Authentification key")
 	flag.Parse()
 
-	cfg := agentconf.NewConfig(*address, *reportInt, *pollInt)
+	cfg := agentconf.NewConfig(*address, *key,  *reportInt, *pollInt)
 	err = env.Parse(cfg)
 	if err != nil {
 		return err

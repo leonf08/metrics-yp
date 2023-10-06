@@ -1,7 +1,9 @@
 package httpserver
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/leonf08/metrics-yp.git/internal/auth"
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
 	"github.com/leonf08/metrics-yp.git/internal/server/logger"
 	"github.com/leonf08/metrics-yp.git/internal/storage"
@@ -45,8 +48,8 @@ type Server struct {
 type ServerOption func(*Server) error
 
 func NewServer(st Repository, cfg *serverconf.Config,
-	logger logger.Logger) (*Server, error) {
-	server := &Server{
+	logger logger.Logger) *Server {
+	return &Server{
 		sv: &http.Server{
 			Addr: cfg.Addr,
 		},
@@ -54,8 +57,6 @@ func NewServer(st Repository, cfg *serverconf.Config,
 		config:  cfg,
 		logger:  logger,
 	}
-
-	return server, nil
 }
 
 func (s *Server) Run() error {
@@ -288,7 +289,7 @@ func (s *Server) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "", http.StatusInternalServerError)
 				return
 			}
-			
+
 			val = int64(valFloat)
 		}
 
@@ -343,7 +344,7 @@ func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(metric); err != nil {
@@ -458,6 +459,48 @@ func (s *Server) CompressMiddleware(next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(ow, r)
+	})
+}
+
+func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		aw := w
+		if s.config.IsAuthKeyExists() {
+			
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				s.logger.Errorln(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			calcHash, err := auth.CalcHash(body, []byte(s.config.Key))
+			s.logger.Infoln(calcHash)
+			if err != nil {
+				s.logger.Errorln(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			getHash, err := hex.DecodeString(r.Header.Get("HashSHA256"))
+			s.logger.Infoln(getHash)
+			if err != nil {
+				s.logger.Errorln(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			if !auth.CheckHash(calcHash, getHash) {
+				s.logger.Errorln("hashsum check failed")
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			aw = auth.NewAuthentificator(w, []byte(s.config.Key))
+			r.Body = io.NopCloser(bytes.NewReader(body))
+		}
+
+		next.ServeHTTP(aw, r)
 	})
 }
 
