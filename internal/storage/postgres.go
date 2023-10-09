@@ -3,19 +3,20 @@ package storage
 import (
 	"context"
 	"errors"
-
+	"github.com/golang-migrate/migrate/v4"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
+	"github.com/leonf08/metrics-yp.git/internal/database/migrations/postgres"
 	"github.com/leonf08/metrics-yp.git/internal/errorhandling"
 )
 
-type PostgresDB struct {
+type PGStorage struct {
 	db *sqlx.DB
 }
 
-func NewDB(sourceName string) (*PostgresDB, error) {
+func NewDB(sourceName string) (*PGStorage, error) {
 	if sourceName == "" {
 		return nil, nil
 	}
@@ -25,42 +26,26 @@ func NewDB(sourceName string) (*PostgresDB, error) {
 		return nil, err
 	}
 
-	return &PostgresDB{
+	m, err := postgres.Migrate(db.DB)
+	if err != nil {
+		return nil, err
+	}
+
+	err = m.Up()
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return nil, err
+	}
+
+	return &PGStorage{
 		db: db,
 	}, nil
 }
 
-func (db *PostgresDB) Ping() error {
-	return db.db.Ping()
+func (st *PGStorage) Ping() error {
+	return st.db.Ping()
 }
 
-func (db *PostgresDB) CreateTable(ctx context.Context) error {
-	queryStr := `
-		CREATE TABLE IF NOT EXISTS metrics(
-			name TEXT PRIMARY KEY,
-			type TEXT,
-			value DOUBLE PRECISION
-		)
-	`
-
-	err := errorhandling.Retry(ctx, func() error {
-		_, err := db.db.ExecContext(ctx, queryStr)
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) &&
-				(pgerrcode.IsInsufficientResources(pgErr.Code) ||
-					pgerrcode.IsConnectionException(pgErr.Code)) {
-				err = errorhandling.ErrRetriable
-			}
-		}
-
-		return err
-	})
-
-	return err
-}
-
-func (db *PostgresDB) Update(ctx context.Context, v any) error {
+func (st *PGStorage) Update(ctx context.Context, v any) error {
 	metrics, ok := v.([]MetricDB)
 	if !ok {
 		return errors.New("invalid type assertion")
@@ -78,7 +63,7 @@ func (db *PostgresDB) Update(ctx context.Context, v any) error {
 		WHERE metrics.NAME = $1;`
 
 	fn := func() error {
-		tx, err := db.db.BeginTxx(ctx, nil)
+		tx, err := st.db.BeginTxx(ctx, nil)
 		if err != nil {
 			return err
 		}
@@ -119,13 +104,13 @@ func (db *PostgresDB) Update(ctx context.Context, v any) error {
 	return err
 }
 
-func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
+func (st *PGStorage) ReadAll(ctx context.Context) (map[string]any, error) {
 	const queryStr = `SELECT * FROM metrics`
 
 	var rows *sqlx.Rows
 	err := errorhandling.Retry(ctx, func() error {
 		var err error
-		r, err := db.db.QueryxContext(ctx, queryStr)
+		r, err := st.db.QueryxContext(ctx, queryStr)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) &&
@@ -149,7 +134,7 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 
 	defer rows.Close()
 
-	metrics := make(map[string]any)
+	metrics := make(map[string]any, 30)
 	for rows.Next() {
 		var m MetricDB
 		if err := rows.StructScan(&m); err != nil {
@@ -174,7 +159,7 @@ func (db *PostgresDB) ReadAll(ctx context.Context) (map[string]any, error) {
 	return metrics, nil
 }
 
-func (db *PostgresDB) SetVal(ctx context.Context, k string, v any) error {
+func (st *PGStorage) SetVal(ctx context.Context, k string, v any) error {
 	const queryStr = `
 		INSERT INTO metrics (NAME, TYPE, VALUE)
 		VALUES ($1, $2, $3)
@@ -195,7 +180,7 @@ func (db *PostgresDB) SetVal(ctx context.Context, k string, v any) error {
 	}
 
 	err := errorhandling.Retry(ctx, func() error {
-		_, err := db.db.ExecContext(ctx, queryStr, k, t, v)
+		_, err := st.db.ExecContext(ctx, queryStr, k, t, v)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) &&
@@ -211,13 +196,13 @@ func (db *PostgresDB) SetVal(ctx context.Context, k string, v any) error {
 	return err
 }
 
-func (db *PostgresDB) GetVal(ctx context.Context, k string) (any, error) {
+func (st *PGStorage) GetVal(ctx context.Context, k string) (any, error) {
 	queryStr := `SELECT TYPE, VALUE FROM metrics WHERE NAME = $1`
 
 	var m Metric
 
 	err := errorhandling.Retry(ctx, func() error {
-		row := db.db.QueryRowxContext(ctx, queryStr, k)
+		row := st.db.QueryRowxContext(ctx, queryStr, k)
 		err := row.StructScan(&m)
 		if err != nil {
 			var pgErr *pgconn.PgError
@@ -232,4 +217,8 @@ func (db *PostgresDB) GetVal(ctx context.Context, k string) (any, error) {
 	})
 
 	return m, err
+}
+
+func (st *PGStorage) Close() {
+	st.db.Close()
 }

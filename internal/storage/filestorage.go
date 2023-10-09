@@ -2,27 +2,28 @@ package storage
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 )
 
-type FileStorage struct {
-	s *saver
-	l *loader
-}
+type (
+	fileStorage struct {
+		s *saver
+		l *loader
+	}
 
-type saver struct {
-	file    *os.File
-	encoder *json.Encoder
-}
+	saver struct {
+		file    *os.File
+		encoder *json.Encoder
+	}
 
-type loader struct {
-	file    *os.File
-	decoder *json.Decoder
-}
+	loader struct {
+		file    *os.File
+		decoder *json.Decoder
+	}
+)
 
-func NewFileStorage(path string) (*FileStorage, error) {
+func newFileStorage(path string) (*fileStorage, error) {
 	s, err := newSaver(path)
 	if err != nil {
 		return nil, err
@@ -33,27 +34,10 @@ func NewFileStorage(path string) (*FileStorage, error) {
 		return nil, err
 	}
 
-	return &FileStorage{
+	return &fileStorage{
 		s: s,
 		l: l,
 	}, nil
-}
-
-func (fs *FileStorage) SaveInFile(m any) error {
-	mt, ok := m.(*MemStorage)
-	if !ok {
-		return errors.New("invalid type assertion")
-	}
-	return fs.s.save(mt)
-}
-
-func (fs *FileStorage) LoadFromFile() (*MemStorage, error) {
-	return fs.l.load()
-}
-
-func (fs *FileStorage) CloseFileStorage() {
-	fs.s.close()
-	fs.l.close()
 }
 
 func newSaver(path string) (*saver, error) {
@@ -77,26 +61,6 @@ func newSaver(path string) (*saver, error) {
 	}, nil
 }
 
-func (s *saver) save(m *MemStorage) error {
-	err := s.file.Truncate(0)
-	if err != nil {
-		return err
-	}
-
-	_, err = s.file.Seek(0, 0)
-	if err != nil {
-		return err
-	}
-
-	s.encoder.SetIndent("", "    ")
-
-	return s.encoder.Encode(m)
-}
-
-func (s *saver) close() error {
-	return s.file.Close()
-}
-
 func newLoader(path string) (*loader, error) {
 	if path == "" {
 		return &loader{}, nil
@@ -113,18 +77,34 @@ func newLoader(path string) (*loader, error) {
 	}, nil
 }
 
-func (l *loader) load() (*MemStorage, error) {
-	m := &MemStorage{
-		Storage: make(map[string]any),
+func (fs *fileStorage) save(m *MemStorage) error {
+	err := fs.s.file.Truncate(0)
+	if err != nil {
+		return err
 	}
 
-	info, err := l.file.Stat()
+	_, err = fs.s.file.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+
+	fs.s.encoder.SetIndent("", "    ")
+
+	return fs.s.encoder.Encode(m)
+}
+
+func (fs *fileStorage) load() (*MemStorage, error) {
+	m := &MemStorage{
+		Storage: make(map[string]any, 30),
+	}
+
+	info, err := fs.l.file.Stat()
 	if err != nil {
 		return nil, err
 	}
 
 	if info.Size() > 0 {
-		if err := l.decoder.Decode(m); err != nil {
+		if err := fs.l.decoder.Decode(m); err != nil {
 			return nil, err
 		}
 	}
@@ -132,6 +112,7 @@ func (l *loader) load() (*MemStorage, error) {
 	return m, nil
 }
 
-func (l *loader) close() error {
-	return l.file.Close()
+func (fs *fileStorage) close() {
+	fs.s.file.Close()
+	fs.l.file.Close()
 }

@@ -26,26 +26,25 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/models"
 )
 
-type Repository interface {
-	ReadAll(context.Context) (map[string]any, error)
-	Update(context.Context, any) error
-	SetVal(context.Context, string, any) error
-	GetVal(context.Context, string) (any, error)
-}
+type (
+	Repository interface {
+		ReadAll(context.Context) (map[string]any, error)
+		Update(context.Context, any) error
+		SetVal(context.Context, string, any) error
+		GetVal(context.Context, string) (any, error)
+	}
 
-type Pinger interface {
-	Ping() error
-}
+	Pinger interface {
+		Ping() error
+	}
 
-type Server struct {
-	sv          *http.Server
-	storage     Repository
-	config      *serverconf.Config
-	logger      logger.Logger
-	fileStorage *storage.FileStorage
-}
-
-type ServerOption func(*Server) error
+	Server struct {
+		sv      *http.Server
+		storage Repository
+		config  *serverconf.Config
+		logger  logger.Logger
+	}
+)
 
 func NewServer(st Repository, cfg *serverconf.Config,
 	logger logger.Logger) *Server {
@@ -66,45 +65,56 @@ func (s *Server) Run() error {
 	g, gCtx := errgroup.WithContext(ctx)
 
 	if s.config.IsFileStorage() {
-		if s.config.Restore {
-			s.logger.Infoln("Load metrics from file")
-			m, err := s.fileStorage.LoadFromFile()
-			if err != nil {
+		g.Go(func() error {
+			m, ok := s.storage.(*storage.MemStorage)
+			if !ok {
+				err := fmt.Errorf("invalid type assertion for in-memory storage")
+				s.logger.Errorln(err)
 				return err
 			}
 
-			for k, v := range m.Storage {
-				if err := s.storage.SetVal(ctx, k, v); err != nil {
+			if s.config.Restore {
+				s.logger.Infoln("Load metrics from file")
+				if err := m.LoadFromFile(); err != nil {
+					s.logger.Errorln(err)
 					return err
 				}
 			}
-		}
 
-		if s.config.StoreInt > 0 {
-			timer := time.NewTicker(time.Duration(s.config.StoreInt) * time.Second)
-			defer timer.Stop()
+			if s.config.StoreInt > 0 {
+				timer := time.NewTicker(time.Duration(s.config.StoreInt) * time.Second)
+				defer timer.Stop()
 
-			go func() {
 				for {
-					<-timer.C
-					s.logger.Infoln("Save current metrics")
-					if err := s.fileStorage.SaveInFile(s.storage); err != nil {
-						s.logger.Errorln(err)
+					select {
+					case <-gCtx.Done():
+						return nil
+					case <-timer.C:
+						s.logger.Infoln("Save current metrics")
+						if err := m.SaveInFile(); err != nil {
+							s.logger.Errorln(err)
+						}
 					}
 				}
-			}()
-		}
+			}
+
+			return nil
+		})
 	}
 
 	g.Go(func() error {
 		<-gCtx.Done()
-		if s.config.IsFileStorage() {
-			s.logger.Infoln("Save current metrics")
-			if err := s.fileStorage.SaveInFile(s.storage); err != nil {
-				s.logger.Errorln(err)
+		switch st := s.storage.(type) {
+		case *storage.MemStorage:
+			if s.config.IsFileStorage() {
+				s.logger.Infoln("Save current metrics")
+				if err := st.SaveInFile(); err != nil {
+					s.logger.Errorln(err)
+				}
+				st.CloseFileStorage()
 			}
-
-			s.fileStorage.CloseFileStorage()
+		case *storage.PGStorage:
+			st.Close()
 		}
 
 		return s.sv.Shutdown(context.Background())
@@ -338,7 +348,14 @@ func (s *Server) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 
 	if s.config.IsFileStorage() && s.config.StoreInt == 0 {
 		s.logger.Infoln("Save current metrics")
-		if err := s.fileStorage.SaveInFile(s.storage); err != nil {
+		m, ok := s.storage.(*storage.MemStorage)
+		if !ok {
+			err := fmt.Errorf("invalid type assertion for in-memory storage")
+			s.logger.Errorln(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := m.SaveInFile(); err != nil {
 			s.logger.Errorln(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -466,7 +483,6 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		aw := w
 		if s.config.IsAuthKeyExists() {
-			
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				s.logger.Errorln(err)
@@ -475,7 +491,6 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 			}
 
 			calcHash, err := auth.CalcHash(body, []byte(s.config.Key))
-			s.logger.Infoln(calcHash)
 			if err != nil {
 				s.logger.Errorln(err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -483,7 +498,6 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 			}
 
 			getHash, err := hex.DecodeString(r.Header.Get("HashSHA256"))
-			s.logger.Infoln(getHash)
 			if err != nil {
 				s.logger.Errorln(err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -491,7 +505,7 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 			}
 
 			if !auth.CheckHash(calcHash, getHash) {
-				s.logger.Errorln("hashsum check failed")
+				s.logger.Errorln("hash check failed")
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -506,15 +520,4 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 
 func (s *Server) RegisterHandler(h http.Handler) {
 	s.sv.Handler = h
-}
-
-func (s *Server) WithFileStorage() error {
-	f, err := storage.NewFileStorage(s.config.FileStoragePath)
-	if err != nil {
-		s.logger.Errorln(err)
-		return err
-	}
-
-	s.fileStorage = f
-	return nil
 }

@@ -1,7 +1,6 @@
 package serverapp
 
 import (
-	"context"
 	"flag"
 
 	"go.uber.org/zap"
@@ -61,13 +60,6 @@ func initServer() (*httpserver.Server, error) {
 
 	s := httpserver.NewServer(repo, config, log)
 
-	if config.IsFileStorage() {
-		err = s.WithFileStorage()
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return s, nil
 }
 
@@ -89,11 +81,11 @@ func initLogger() (logger.Logger, error) {
 
 func getConfig() (*serverconf.Config, error) {
 	address := flag.String("a", ":8080", "Host address of the server")
-	storeInt := flag.Int("i", 300, "Store interval for the metrics")
+	storeInt := flag.Int("i", 10, "Store interval for the metrics")
 	filePath := flag.String("f", "tmp/metrics-db.json", "Path to file for metrics storage")
 	dbAddr := flag.String("d", "", "Database address")
 	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")
-	key := flag.String("k", "", "Authentification key")
+	key := flag.String("k", "", "Authentication key")
 	flag.Parse()
 
 	cfg := serverconf.NewConfig(*storeInt, *address, *filePath, *dbAddr, *key, *restore)
@@ -108,14 +100,17 @@ func initRepo(cfg *serverconf.Config) (httpserver.Repository, error) {
 	var repo httpserver.Repository
 	if cfg.IsInMemStorage() {
 		st := storage.NewStorage()
+
+		if cfg.IsFileStorage() {
+			err := st.WithFileStorage(cfg.FileStoragePath)
+			if err != nil {
+				return nil, err
+			}
+		}
 		repo = st
 	} else {
 		db, err := storage.NewDB(cfg.DatabaseAddr)
 		if err != nil {
-			return nil, err
-		}
-
-		if err = db.CreateTable(context.Background()); err != nil {
 			return nil, err
 		}
 

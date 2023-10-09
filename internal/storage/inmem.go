@@ -11,12 +11,13 @@ import (
 
 type MemStorage struct {
 	Storage map[string]any `json:"metrics"`
-	counter int64          `json:"-"`
+	fs      *fileStorage
+	counter int64
 }
 
 func NewStorage() *MemStorage {
 	return &MemStorage{
-		Storage: make(map[string]any),
+		Storage: make(map[string]any, 30),
 	}
 }
 
@@ -30,7 +31,7 @@ func (st *MemStorage) Update(ctx context.Context, v any) error {
 		"Alloc":         Metric{Type: "gauge", Val: float64(m.Alloc)},
 		"BuckHashSys":   Metric{Type: "gauge", Val: float64(m.BuckHashSys)},
 		"Frees":         Metric{Type: "gauge", Val: float64(m.Frees)},
-		"GCCPUFraction": Metric{Type: "gauge", Val: float64(m.GCCPUFraction)},
+		"GCCPUFraction": Metric{Type: "gauge", Val: m.GCCPUFraction},
 		"GCSys":         Metric{Type: "gauge", Val: float64(m.GCSys)},
 		"HeapAlloc":     Metric{Type: "gauge", Val: float64(m.HeapAlloc)},
 		"HeapIdle":      Metric{Type: "gauge", Val: float64(m.HeapIdle)},
@@ -130,4 +131,32 @@ func (st *MemStorage) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+func (st *MemStorage) WithFileStorage(path string) error {
+	f, err := newFileStorage(path)
+	if err != nil {
+		return err
+	}
+
+	st.fs = f
+	return nil
+}
+
+func (st *MemStorage) SaveInFile() error {
+	return st.fs.save(st)
+}
+
+func (st *MemStorage) LoadFromFile() error {
+	m, err := st.fs.load()
+	if err != nil {
+		return err
+	}
+
+	st.Storage = m.Storage
+	return err
+}
+
+func (st *MemStorage) CloseFileStorage() {
+	st.fs.close()
 }
