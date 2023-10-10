@@ -410,7 +410,7 @@ func (s *Server) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) PingDB(w http.ResponseWriter, r *http.Request) {
+func (s *Server) PingDB(w http.ResponseWriter, _ *http.Request) {
 	p, ok := s.storage.(Pinger)
 	if !ok {
 		http.Error(w, "not implemented", http.StatusNotImplemented)
@@ -504,6 +504,7 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
+			s.logger.Infoln(s.config.Key)
 			if !auth.CheckHash(calcHash, getHash) {
 				s.logger.Errorln("hash check failed")
 				w.WriteHeader(http.StatusBadRequest)
