@@ -2,9 +2,8 @@ package serverapp
 
 import (
 	"flag"
-	"os"
-	"os/signal"
-	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/go-chi/chi/v5"
@@ -12,7 +11,6 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/server/httpserver"
 	"github.com/leonf08/metrics-yp.git/internal/server/logger"
 	"github.com/leonf08/metrics-yp.git/internal/storage"
-	"go.uber.org/zap"
 )
 
 func StartApp() error {
@@ -21,75 +19,26 @@ func StartApp() error {
 		return err
 	}
 
-	defer server.Saver.Close()
-	defer server.Loader.Close()
-
 	router := chi.NewRouter()
-	router.Get("/", server.Default)
-	router.Post("/", server.Default)
-	router.Route("/value", func(r chi.Router) {
-		r.Get("/{type}/{name}", server.GetMetric)
-		r.Post("/", server.GetMetricJSON)
+	router.Route("/", func(r chi.Router) {
+		r.Get("/", server.Default)
+		r.Post("/", server.Default)
+		r.Get("/ping", server.PingDB)
+		r.Post("/updates/", server.UpdateMetricsBatch)
+		r.Route("/value", func(r chi.Router) {
+			r.Get("/{type}/{name}", server.GetMetric)
+			r.Post("/", server.GetMetricJSON)
+		})
+		r.Route("/update", func(r chi.Router) {
+			r.Post("/", server.UpdateMetricJSON)
+			r.Post("/{type}/{name}/{val}", server.UpdateMetric)
+		})
 	})
-	router.Route("/update", func(r chi.Router) {
-		r.Post("/", server.UpdateMetricJSON)
-		r.Post("/{type}/{name}/{val}", server.UpdateMetric)
-	})
 
-	handler := server.LoggingMiddleware(server.CompressMiddleware(router))
+	handler := server.LoggingMiddleware(server.AuthMiddleware(server.CompressMiddleware(router)))
+	server.RegisterHandler(handler)
 
-	if server.Config.FileStoragePath != "" {
-		if server.Config.Restore {
-			m, err := server.Loader.LoadMetrics()
-			if err != nil {
-				return err
-			}
-
-			for k, v := range m.Storage {
-				if err := server.Storage.SetVal(k, v); err != nil {
-					return err
-				}
-			}
-		}
-
-		shutdown := make(chan os.Signal, 1)
-		signal.Notify(shutdown, os.Interrupt)
-		defer close(shutdown)
-
-		if server.Config.StoreInt > 0 {
-			timer := time.NewTicker(time.Duration(server.Config.StoreInt) * time.Second)
-			defer timer.Stop()
-
-			go func() {
-				for {
-					select {
-					case <-timer.C:
-						server.Logger.Infoln("Save current metrics")
-						if err := server.Saver.SaveMetrics(); err != nil {
-							server.Logger.Errorln(err)
-						}
-					case <-shutdown:
-						server.Logger.Infoln("Save current metrics and shut down the server")
-						if err := server.Saver.SaveMetrics(); err != nil {
-							server.Logger.Fatalln(err)
-						}
-						os.Exit(0)
-					}
-				}
-			}()
-		} else {
-			go func() {
-				<-shutdown
-				server.Logger.Infoln("Save current metrics and shut down the server")
-				if err := server.Saver.SaveMetrics(); err != nil {
-					server.Logger.Fatalln(err)
-				}
-				os.Exit(0)
-			}()
-		}
-	}
-
-	return server.Run(handler)
+	return server.Run()
 }
 
 func initServer() (*httpserver.Server, error) {
@@ -99,24 +48,19 @@ func initServer() (*httpserver.Server, error) {
 	}
 	log := logger.NewLogger(l)
 
-	config, err := processFlagsEnv()
+	config, err := getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	storage := storage.NewStorage()
-
-	metricsSaver, err := httpserver.NewSaver(config.FileStoragePath, storage)
+	repo, err := initRepo(config)
 	if err != nil {
 		return nil, err
 	}
 
-	metricsLoader, err := httpserver.NewLoader(config.FileStoragePath)
-	if err != nil {
-		return nil, err
-	}
+	s := httpserver.NewServer(repo, config, log)
 
-	return httpserver.NewServer(storage, config, metricsSaver, metricsLoader, log), nil
+	return s, nil
 }
 
 func initLogger() (logger.Logger, error) {
@@ -135,17 +79,43 @@ func initLogger() (logger.Logger, error) {
 	return zl.Sugar(), nil
 }
 
-func processFlagsEnv() (*serverconf.Config, error) {
+func getConfig() (*serverconf.Config, error) {
 	address := flag.String("a", ":8080", "Host address of the server")
-	storeInt := flag.Int("i", 300, "Store interval for the metrics")
+	storeInt := flag.Int("i", 10, "Store interval for the metrics")
 	filePath := flag.String("f", "tmp/metrics-db.json", "Path to file for metrics storage")
+	dbAddr := flag.String("d", "", "Database address")
 	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")
+	key := flag.String("k", "", "Authentication key")
 	flag.Parse()
 
-	cfg := serverconf.NewConfig(*storeInt, *address, *filePath, *restore)
+	cfg := serverconf.NewConfig(*storeInt, *address, *filePath, *dbAddr, *key, *restore)
 	if err := env.Parse(cfg); err != nil {
 		return nil, err
 	}
 
 	return cfg, nil
+}
+
+func initRepo(cfg *serverconf.Config) (httpserver.Repository, error) {
+	var repo httpserver.Repository
+	if cfg.IsInMemStorage() {
+		st := storage.NewStorage()
+
+		if cfg.IsFileStorage() {
+			err := st.WithFileStorage(cfg.FileStoragePath)
+			if err != nil {
+				return nil, err
+			}
+		}
+		repo = st
+	} else {
+		db, err := storage.NewDB(cfg.DatabaseAddr)
+		if err != nil {
+			return nil, err
+		}
+
+		repo = db
+	}
+
+	return repo, nil
 }

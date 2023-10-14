@@ -5,9 +5,9 @@ import (
 )
 
 type Logger interface {
-	Infoln(args ...interface{})
-	Errorln(args ...interface{})
-	Fatalln(args ...interface{})
+	Infoln(args ...any)
+	Errorln(args ...any)
+	Fatalln(args ...any)
 }
 
 type (

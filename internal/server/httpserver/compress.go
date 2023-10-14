@@ -57,7 +57,7 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	}, nil
 }
 
-func (cr compressReader) Read(p []byte) (n int, err error) {
+func (cr *compressReader) Read(p []byte) (n int, err error) {
 	return cr.gzr.Read(p)
 }
 

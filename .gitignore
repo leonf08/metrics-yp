@@ -25,3 +25,11 @@ vendor/
 .vscode
 metricstest
 cmd/server/tmp/metrics-db.json
+tmp/metrics-db.json
+bin/agent/agent
+.gitignore
+.gitignore
+bin/server/server
+Makefile
+internal/app/agentapp/agent.go
+statictest
