@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
+	"sync"
 )
 
 type MemStorage struct {
 	Storage map[string]any `json:"metrics"`
 	fs      *fileStorage
 	counter int64
+	mu      sync.RWMutex
 }
 
 func NewStorage() *MemStorage {
@@ -22,6 +24,9 @@ func NewStorage() *MemStorage {
 }
 
 func (st *MemStorage) Update(_ context.Context, v any) error {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
 	m, ok := v.(*runtime.MemStats)
 	if !ok {
 		return errors.New("invalid input data")
@@ -67,6 +72,9 @@ func (st *MemStorage) Update(_ context.Context, v any) error {
 }
 
 func (st *MemStorage) SetVal(_ context.Context, k string, v any) error {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
 	switch val := v.(type) {
 	case float64:
 		st.Storage[k] = Metric{Type: "gauge", Val: val}

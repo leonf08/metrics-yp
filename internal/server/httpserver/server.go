@@ -88,7 +88,7 @@ func (s *Server) Run() error {
 				for {
 					select {
 					case <-gCtx.Done():
-						return nil
+						return gCtx.Err()
 					case <-timer.C:
 						s.logger.Infoln("Save current metrics")
 						if err := m.SaveInFile(); err != nil {
@@ -504,7 +504,6 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
-			s.logger.Infoln(s.config.Key)
 			if !auth.CheckHash(calcHash, getHash) {
 				s.logger.Errorln("hash check failed")
 				w.WriteHeader(http.StatusBadRequest)
