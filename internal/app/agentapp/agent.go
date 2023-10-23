@@ -84,7 +84,7 @@ func (a *Agent) Run() error {
 
 func (a *Agent) poll(ctx context.Context) error {
 
-	pollTicker := time.NewTicker(a.config.PollInt)
+	pollTicker := time.NewTicker(time.Duration(a.config.PollInt) * time.Second)
 	defer pollTicker.Stop()
 
 	for {
@@ -125,7 +125,7 @@ func (a *Agent) poll(ctx context.Context) error {
 }
 
 func (a *Agent) report(ctx context.Context) error {
-	reportTicker := time.NewTicker(a.config.ReportInt)
+	reportTicker := time.NewTicker(time.Duration(a.config.ReportInt) * time.Second)
 	defer reportTicker.Stop()
 
 	limiter := ratelimit.New(a.config.RateLim)
@@ -152,7 +152,7 @@ func (a *Agent) report(ctx context.Context) error {
 	}
 }
 
-func makeJsonBody(metricName string, value any) (*bytes.Reader, error) {
+func makeJSONBody(metricName string, value any) (*bytes.Reader, error) {
 	var buf bytes.Buffer
 
 	metStruct := new(models.MetricJSON)
@@ -190,7 +190,7 @@ func makeJsonBody(metricName string, value any) (*bytes.Reader, error) {
 	return bytes.NewReader(buf.Bytes()), nil
 }
 
-func (a *Agent) sendJsonRequest(ctx context.Context, url string, body *bytes.Reader) error {
+func (a *Agent) sendJSONRequest(ctx context.Context, url string, body *bytes.Reader) error {
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(body)
 	if err != nil {
@@ -281,7 +281,7 @@ func (a *Agent) prepareTasks(ctx context.Context) ([]*task, error) {
 
 		bodies := make([]*bytes.Reader, 0)
 		for n, v := range metrics {
-			b, err := makeJsonBody(n, v)
+			b, err := makeJSONBody(n, v)
 			if err != nil {
 				return nil, err
 			}
@@ -293,7 +293,7 @@ func (a *Agent) prepareTasks(ctx context.Context) ([]*task, error) {
 		for i, body := range bodies {
 			body := body
 			fn := func(ctx context.Context) error {
-				return a.sendJsonRequest(ctx, url, body)
+				return a.sendJSONRequest(ctx, url, body)
 			}
 
 			tasks[i] = &task{fn: fn}
