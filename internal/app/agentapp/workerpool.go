@@ -2,6 +2,7 @@ package agentapp
 
 import (
 	"context"
+	"go.uber.org/ratelimit"
 	"sync"
 )
 
@@ -15,16 +16,17 @@ type (
 		tasks   []*task
 		workers int
 		jobs    chan *task
-		wg      *sync.WaitGroup
+		limiter ratelimit.Limiter
+		sync.WaitGroup
 	}
 )
 
-func newWorkerPool(tasks []*task, workers int) *workerPool {
+func newWorkerPool(ts []*task, ws int, l ratelimit.Limiter) *workerPool {
 	return &workerPool{
-		tasks:   tasks,
-		workers: workers,
-		jobs:    make(chan *task, len(tasks)),
-		wg:      new(sync.WaitGroup),
+		tasks:   ts,
+		workers: ws,
+		jobs:    make(chan *task, len(ts)),
+		limiter: l,
 	}
 }
 
@@ -33,19 +35,20 @@ func (w *workerPool) run(ctx context.Context) {
 		go w.work(ctx)
 	}
 
-	w.wg.Add(len(w.tasks))
+	w.Add(len(w.tasks))
 	for _, task := range w.tasks {
 		w.jobs <- task
 	}
 
 	close(w.jobs)
 
-	w.wg.Wait()
+	w.Wait()
 }
 
 func (w *workerPool) work(ctx context.Context) {
 	for t := range w.jobs {
+		w.limiter.Take()
 		t.err = t.fn(ctx)
-		w.wg.Done()
+		w.Done()
 	}
 }

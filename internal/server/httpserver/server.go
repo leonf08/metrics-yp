@@ -117,6 +117,7 @@ func (s *Server) Run() error {
 			st.Close()
 		}
 
+		s.logger.Infoln("Server shutdown")
 		return s.sv.Shutdown(context.Background())
 	})
 

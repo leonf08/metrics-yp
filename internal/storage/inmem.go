@@ -14,7 +14,7 @@ type MemStorage struct {
 	Storage map[string]any `json:"metrics"`
 	fs      *fileStorage
 	counter int64
-	mu      sync.RWMutex
+	sync.RWMutex
 }
 
 func NewStorage() *MemStorage {
@@ -24,8 +24,8 @@ func NewStorage() *MemStorage {
 }
 
 func (st *MemStorage) Update(_ context.Context, v any) error {
-	st.mu.Lock()
-	defer st.mu.Unlock()
+	st.Lock()
+	defer st.Unlock()
 
 	m, ok := v.(*runtime.MemStats)
 	if !ok {
@@ -72,8 +72,8 @@ func (st *MemStorage) Update(_ context.Context, v any) error {
 }
 
 func (st *MemStorage) SetVal(_ context.Context, k string, v any) error {
-	st.mu.Lock()
-	defer st.mu.Unlock()
+	st.Lock()
+	defer st.Unlock()
 
 	switch val := v.(type) {
 	case float64:
@@ -106,6 +106,9 @@ func (st *MemStorage) SetVal(_ context.Context, k string, v any) error {
 }
 
 func (st *MemStorage) GetVal(_ context.Context, k string) (any, error) {
+	st.RLock()
+	defer st.RUnlock()
+
 	v, ok := st.Storage[k]
 	if !ok {
 		return Metric{}, fmt.Errorf("metric %s not found", k)
@@ -115,6 +118,8 @@ func (st *MemStorage) GetVal(_ context.Context, k string) (any, error) {
 }
 
 func (st *MemStorage) ReadAll(_ context.Context) (map[string]any, error) {
+	st.RLock()
+	defer st.RUnlock()
 	return st.Storage, nil
 }
 

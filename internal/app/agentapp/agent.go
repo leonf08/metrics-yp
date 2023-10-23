@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
+	"go.uber.org/ratelimit"
 	"golang.org/x/sync/errgroup"
 	"io"
 	"net"
@@ -53,72 +54,102 @@ func NewAgent(cl *http.Client, st Repository, l logger.Logger, cfg *agentconf.Co
 
 func (a *Agent) Run() error {
 	a.logger.Infoln("Running agent")
-	m := new(runtime.MemStats)
 
-	pollTime := time.NewTicker(a.config.PollInt)
-	reportTime := time.NewTicker(a.config.ReportInt)
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
 	defer cancel()
 
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		for {
-			select {
-			case <-gCtx.Done():
-				return gCtx.Err()
-			case <-pollTime.C:
-				runtime.ReadMemStats(m)
-				if err := a.storage.Update(gCtx, m); err != nil {
-					return err
-				}
-			}
+		err := a.poll(gCtx)
+		if err != nil {
+			a.logger.Errorln(err)
 		}
+
+		return err
 	})
 
 	g.Go(func() error {
-		for {
-			select {
-			case <-gCtx.Done():
-				return gCtx.Err()
-			case <-pollTime.C:
-				m, err := mem.VirtualMemoryWithContext(gCtx)
-				if err != nil {
+		err := a.report(gCtx)
+		if err != nil {
+			a.logger.Errorln(err)
+		}
+
+		return err
+	})
+
+	err := g.Wait()
+	a.logger.Infoln("Shutting down agent")
+	return err
+}
+
+func (a *Agent) poll(ctx context.Context) error {
+
+	pollTicker := time.NewTicker(a.config.PollInt)
+	defer pollTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-pollTicker.C:
+			a.logger.Infoln("Gathering metrics")
+			memStats := new(runtime.MemStats)
+
+			runtime.ReadMemStats(memStats)
+			if err := a.storage.Update(ctx, memStats); err != nil {
+				return err
+			}
+
+			virtualMem, err := mem.VirtualMemoryWithContext(ctx)
+			if err != nil {
+				return err
+			}
+			totalMem := virtualMem.Total
+			freeMem := virtualMem.Free
+
+			c, err := cpu.PercentWithContext(ctx, 0, false)
+			if err != nil {
+				return err
+			}
+			cpuUtil := c[0]
+			for n, v := range map[string]float64{
+				"TotalMemory": float64(totalMem), "FreeMemory": float64(freeMem), "CPUutilization": cpuUtil} {
+				if err := a.storage.SetVal(ctx, n, v); err != nil {
 					return err
 				}
-				totalMem := m.Total
-				freeMem := m.Free
+			}
 
-				c, err := cpu.PercentWithContext(gCtx, 0, false)
-				cpuUtil := c[0]
-				for n, v := range map[string]float64{
-					"TotalMemory": float64(totalMem), "FreeMemory": float64(freeMem), "CPUutilization": cpuUtil} {
-					if err := a.storage.SetVal(gCtx, n, v); err != nil {
-						return err
-					}
+			a.logger.Infoln("Metrics gathered")
+		}
+	}
+}
+
+func (a *Agent) report(ctx context.Context) error {
+	reportTicker := time.NewTicker(a.config.ReportInt)
+	defer reportTicker.Stop()
+
+	limiter := ratelimit.New(a.config.RateLim)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-reportTicker.C:
+			tasks, err := a.prepareTasks(ctx)
+			if err != nil {
+				return err
+			}
+
+			pool := newWorkerPool(tasks, runtime.NumCPU(), limiter)
+			pool.run(ctx)
+
+			for _, task := range pool.tasks {
+				if task.err != nil {
+					a.logger.Errorln(task.err)
 				}
 			}
 		}
-	})
-
-	g.Go(func() error {
-		for {
-			select {
-			case <-gCtx.Done():
-				return gCtx.Err()
-			case <-reportTime.C:
-				tasks, err := a.prepareTasks(gCtx)
-				if err != nil {
-					return err
-				}
-
-				pool := newWorkerPool(tasks, runtime.NumCPU())
-				pool.run(gCtx)
-			}
-		}
-	})
-
-	return g.Wait()
+	}
 }
 
 func makeJsonBody(metricName string, value any) (*bytes.Reader, error) {
