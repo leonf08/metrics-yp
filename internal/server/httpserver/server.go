@@ -1,9 +1,7 @@
 package httpserver
 
 import (
-	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/leonf08/metrics-yp.git/internal/auth"
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
 	"github.com/leonf08/metrics-yp.git/internal/server/logger"
 	"github.com/leonf08/metrics-yp.git/internal/storage"
@@ -483,37 +480,37 @@ func (s *Server) CompressMiddleware(next http.Handler) http.Handler {
 func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		aw := w
-		if s.config.IsAuthKeyExists() {
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				s.logger.Errorln(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			calcHash, err := auth.CalcHash(body, []byte(s.config.Key))
-			if err != nil {
-				s.logger.Errorln(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			getHash, err := hex.DecodeString(r.Header.Get("HashSHA256"))
-			if err != nil {
-				s.logger.Errorln(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			if !auth.CheckHash(calcHash, getHash) {
-				s.logger.Errorln("hash check failed")
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			aw = auth.NewAuthentificator(w, []byte(s.config.Key))
-			r.Body = io.NopCloser(bytes.NewReader(body))
-		}
+		//if s.config.IsAuthKeyExists() {
+		//	body, err := io.ReadAll(r.Body)
+		//	if err != nil {
+		//		s.logger.Errorln(err)
+		//		w.WriteHeader(http.StatusInternalServerError)
+		//		return
+		//	}
+		//
+		//	calcHash, err := auth.CalcHash(body, []byte(s.config.Key))
+		//	if err != nil {
+		//		s.logger.Errorln(err)
+		//		w.WriteHeader(http.StatusInternalServerError)
+		//		return
+		//	}
+		//
+		//	getHash, err := hex.DecodeString(r.Header.Get("HashSHA256"))
+		//	if err != nil {
+		//		s.logger.Errorln(err)
+		//		w.WriteHeader(http.StatusInternalServerError)
+		//		return
+		//	}
+		//
+		//	if !auth.CheckHash(calcHash, getHash) {
+		//		s.logger.Errorln("hash check failed")
+		//		w.WriteHeader(http.StatusBadRequest)
+		//		return
+		//	}
+		//
+		//	aw = auth.NewAuthentificator(w, []byte(s.config.Key))
+		//	r.Body = io.NopCloser(bytes.NewReader(body))
+		//}
 
 		next.ServeHTTP(aw, r)
 	})
