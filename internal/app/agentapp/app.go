@@ -3,6 +3,7 @@ package agentapp
 import (
 	"flag"
 	"fmt"
+	"github.com/leonf08/metrics-yp.git/internal/auth"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,17 +30,19 @@ func StartApp() error {
 		return err
 	}
 
-	cfg, err := getConfig()
+	config, err := getConfig()
 	if err != nil {
 		return err
 	}
 
 	log := logger.NewLogger(l)
 
-	cl := &http.Client{}
-	st := storage.NewStorage()
+	client := &http.Client{}
+	repo := storage.NewStorage()
 
-	agent := NewAgent(cl, st, log, cfg)
+	signer := auth.NewHashSigner(config.Key)
+
+	agent := NewAgent(client, repo, log, config, signer)
 	return agent.Run()
 }
 

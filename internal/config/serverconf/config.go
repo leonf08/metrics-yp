@@ -27,7 +27,3 @@ func (cfg *Config) IsInMemStorage() bool {
 func (cfg *Config) IsFileStorage() bool {
 	return cfg.FileStoragePath != "" && cfg.IsInMemStorage()
 }
-
-func (cfg *Config) IsAuthKeyExists() bool {
-	return cfg.Key != ""
-}

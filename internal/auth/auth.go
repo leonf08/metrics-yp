@@ -7,20 +7,25 @@ import (
 	"net/http"
 )
 
-type hashWriter struct {
+var _ http.ResponseWriter = (*HashSigner)(nil)
+
+type HashSigner struct {
 	http.ResponseWriter
-	key []byte
+	key string
 }
 
-func NewAuthentificator(w http.ResponseWriter, key []byte) *hashWriter {
-	return &hashWriter{
-		ResponseWriter: w,
-		key:            key,
+func NewHashSigner(key string) *HashSigner {
+	if key == "" {
+		return nil
+	}
+
+	return &HashSigner{
+		key: key,
 	}
 }
 
-func (h *hashWriter) Write(b []byte) (int, error) {
-	hash, err := CalcHash(b, h.key)
+func (h *HashSigner) Write(b []byte) (int, error) {
+	hash, err := h.CalcHash(b)
 	if err != nil {
 		return 0, err
 	}
@@ -29,16 +34,16 @@ func (h *hashWriter) Write(b []byte) (int, error) {
 	return h.ResponseWriter.Write(b)
 }
 
-func CalcHash(src, key []byte) ([]byte, error) {
-	h := hmac.New(sha256.New, key)
-	_, err := h.Write(src)
+func (h *HashSigner) CalcHash(src []byte) ([]byte, error) {
+	hash := hmac.New(sha256.New, []byte(h.key))
+	_, err := hash.Write(src)
 	if err != nil {
 		return nil, err
 	}
 
-	return h.Sum(nil), nil
+	return hash.Sum(nil), nil
 }
 
-func CheckHash(h1, h2 []byte) bool {
+func (h *HashSigner) CheckHash(h1, h2 []byte) bool {
 	return hmac.Equal(h1, h2)
 }

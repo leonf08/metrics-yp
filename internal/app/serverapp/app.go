@@ -3,6 +3,7 @@ package serverapp
 import (
 	"flag"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/leonf08/metrics-yp.git/internal/auth"
 
 	"go.uber.org/zap"
 
@@ -58,7 +59,9 @@ func initServer() (*httpserver.Server, error) {
 		return nil, err
 	}
 
-	s := httpserver.NewServer(repo, config, log)
+	signer := auth.NewHashSigner(config.Key)
+
+	s := httpserver.NewServer(repo, config, log, signer)
 
 	return s, nil
 }

@@ -41,14 +41,16 @@ type Agent struct {
 	storage Repository
 	logger  logger.Logger
 	config  *agentconf.Config
+	signer  *auth.HashSigner
 }
 
-func NewAgent(cl *http.Client, st Repository, l logger.Logger, cfg *agentconf.Config) *Agent {
+func NewAgent(cl *http.Client, st Repository, l logger.Logger, cfg *agentconf.Config, s *auth.HashSigner) *Agent {
 	return &Agent{
 		client:  cl,
 		storage: st,
 		logger:  l,
 		config:  cfg,
+		signer:  s,
 	}
 }
 
@@ -146,6 +148,9 @@ func (a *Agent) report(ctx context.Context) error {
 			for _, task := range pool.tasks {
 				if task.err != nil {
 					a.logger.Errorln(task.err)
+					if errors.Is(task.err, errorhandling.ErrRetryFailed) {
+						return task.err
+					}
 				}
 			}
 		}
@@ -212,9 +217,9 @@ func (a *Agent) sendJSONRequest(ctx context.Context, url string, body *bytes.Rea
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Content-Encoding", "gzip")
 
-		if a.config.IsAuthKeyExists() {
+		if a.signer != nil {
 			var hash []byte
-			hash, err = auth.CalcHash(hashSrc, []byte(a.config.Key))
+			hash, err = a.signer.CalcHash(hashSrc)
 			if err != nil {
 				a.logger.Errorln(err)
 				return
@@ -370,9 +375,9 @@ func (a *Agent) sendMetricBatch(url string) error {
 
 		a.logger.Infoln("Sending request", "address", url)
 
-		if a.config.IsAuthKeyExists() {
+		if a.signer != nil {
 			var hash []byte
-			hash, err = auth.CalcHash(buf.Bytes(), []byte(a.config.Key))
+			hash, err = a.signer.CalcHash(buf.Bytes())
 			if err != nil {
 				a.logger.Errorln(err)
 				return

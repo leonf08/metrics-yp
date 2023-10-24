@@ -19,7 +19,3 @@ func NewConfig(addr, key, mode string, reportInt, pollInt, rate int) *Config {
 		Mode:      mode,
 	}
 }
-
-func (cfg *Config) IsAuthKeyExists() bool {
-	return cfg.Key != ""
-}
