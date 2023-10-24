@@ -485,7 +485,8 @@ func (s *Server) CompressMiddleware(next http.Handler) http.Handler {
 func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		aw := w
-		if s.signer != nil {
+		hashReq := r.Header.Get("HashSHA256")
+		if s.signer != nil && hashReq != "" {
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				s.logger.Errorln(err)
@@ -500,7 +501,7 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
-			getHash, err := hex.DecodeString(r.Header.Get("HashSHA256"))
+			getHash, err := hex.DecodeString(hashReq)
 			if err != nil {
 				s.logger.Errorln(err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -508,7 +509,7 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 			}
 
 			checkEqual := s.signer.CheckHash(calcHash, getHash)
-			if checkEqual == false {
+			if !checkEqual {
 				s.logger.Errorln("hash check failed")
 				w.WriteHeader(http.StatusBadRequest)
 				return
