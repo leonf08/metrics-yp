@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/leonf08/metrics-yp.git/internal/auth"
 	"io"
 	"net/http"
 	"os"
@@ -15,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/leonf08/metrics-yp.git/internal/auth"
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
 	"github.com/leonf08/metrics-yp.git/internal/server/logger"
 	"github.com/leonf08/metrics-yp.git/internal/storage"
@@ -43,11 +43,12 @@ type (
 		storage Repository
 		config  *serverconf.Config
 		logger  logger.Logger
+		signer  *auth.HashSigner
 	}
 )
 
 func NewServer(st Repository, cfg *serverconf.Config,
-	logger logger.Logger) *Server {
+	logger logger.Logger, s *auth.HashSigner) *Server {
 	return &Server{
 		sv: &http.Server{
 			Addr: cfg.Addr,
@@ -55,6 +56,7 @@ func NewServer(st Repository, cfg *serverconf.Config,
 		storage: st,
 		config:  cfg,
 		logger:  logger,
+		signer:  s,
 	}
 }
 
@@ -88,7 +90,7 @@ func (s *Server) Run() error {
 				for {
 					select {
 					case <-gCtx.Done():
-						return nil
+						return gCtx.Err()
 					case <-timer.C:
 						s.logger.Infoln("Save current metrics")
 						if err := m.SaveInFile(); err != nil {
@@ -117,6 +119,7 @@ func (s *Server) Run() error {
 			st.Close()
 		}
 
+		s.logger.Infoln("Server shutdown")
 		return s.sv.Shutdown(context.Background())
 	})
 
@@ -410,7 +413,7 @@ func (s *Server) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) PingDB(w http.ResponseWriter, r *http.Request) {
+func (s *Server) PingDB(w http.ResponseWriter, _ *http.Request) {
 	p, ok := s.storage.(Pinger)
 	if !ok {
 		http.Error(w, "not implemented", http.StatusNotImplemented)
@@ -482,7 +485,8 @@ func (s *Server) CompressMiddleware(next http.Handler) http.Handler {
 func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		aw := w
-		if s.config.IsAuthKeyExists() {
+		hashReq := r.Header.Get("HashSHA256")
+		if s.signer != nil && hashReq != "" {
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				s.logger.Errorln(err)
@@ -490,27 +494,29 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
-			calcHash, err := auth.CalcHash(body, []byte(s.config.Key))
+			calcHash, err := s.signer.CalcHash(body)
 			if err != nil {
 				s.logger.Errorln(err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
-			getHash, err := hex.DecodeString(r.Header.Get("HashSHA256"))
+			getHash, err := hex.DecodeString(hashReq)
 			if err != nil {
 				s.logger.Errorln(err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
-			if !auth.CheckHash(calcHash, getHash) {
+			checkEqual := s.signer.CheckHash(calcHash, getHash)
+			if !checkEqual {
 				s.logger.Errorln("hash check failed")
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 
-			aw = auth.NewAuthentificator(w, []byte(s.config.Key))
+			s.signer.ResponseWriter = w
+			aw = s.signer
 			r.Body = io.NopCloser(bytes.NewReader(body))
 		}
 

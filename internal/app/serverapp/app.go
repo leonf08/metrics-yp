@@ -2,6 +2,8 @@ package serverapp
 
 import (
 	"flag"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/leonf08/metrics-yp.git/internal/auth"
 
 	"go.uber.org/zap"
 
@@ -20,6 +22,7 @@ func StartApp() error {
 	}
 
 	router := chi.NewRouter()
+	router.Use(server.LoggingMiddleware, server.AuthMiddleware, server.CompressMiddleware, middleware.Recoverer)
 	router.Route("/", func(r chi.Router) {
 		r.Get("/", server.Default)
 		r.Post("/", server.Default)
@@ -34,9 +37,7 @@ func StartApp() error {
 			r.Post("/{type}/{name}/{val}", server.UpdateMetric)
 		})
 	})
-
-	handler := server.LoggingMiddleware(server.AuthMiddleware(server.CompressMiddleware(router)))
-	server.RegisterHandler(handler)
+	server.RegisterHandler(router)
 
 	return server.Run()
 }
@@ -58,7 +59,9 @@ func initServer() (*httpserver.Server, error) {
 		return nil, err
 	}
 
-	s := httpserver.NewServer(repo, config, log)
+	signer := auth.NewHashSigner(config.Key)
+
+	s := httpserver.NewServer(repo, config, log, signer)
 
 	return s, nil
 }
@@ -81,7 +84,7 @@ func initLogger() (logger.Logger, error) {
 
 func getConfig() (*serverconf.Config, error) {
 	address := flag.String("a", ":8080", "Host address of the server")
-	storeInt := flag.Int("i", 10, "Store interval for the metrics")
+	storeInt := flag.Int("i", 300, "Store interval for the metrics")
 	filePath := flag.String("f", "tmp/metrics-db.json", "Path to file for metrics storage")
 	dbAddr := flag.String("d", "", "Database address")
 	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")

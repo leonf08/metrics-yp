@@ -5,17 +5,17 @@ type Config struct {
 	ReportInt int    `env:"REPORT_INTERVAL"`
 	PollInt   int    `env:"POLL_INTERVAL"`
 	Key       string `env:"KEY"`
+	RateLim   int    `env:"RATE_LIMIT"`
+	Mode      string
 }
 
-func NewConfig(addr, key string, reportInt, pollInt int) *Config {
+func NewConfig(addr, key, mode string, reportInt, pollInt, rate int) *Config {
 	return &Config{
 		Addr:      addr,
-		Key: key,
+		Key:       key,
 		ReportInt: reportInt,
 		PollInt:   pollInt,
+		RateLim:   rate,
+		Mode:      mode,
 	}
-}
-
-func (cfg *Config) IsAuthKeyExists() bool {
-	return cfg.Key != ""
 }

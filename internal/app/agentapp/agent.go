@@ -8,12 +8,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
+	"go.uber.org/ratelimit"
+	"golang.org/x/sync/errgroup"
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"runtime"
-	"strconv"
-	"strings"
+	"syscall"
 	"time"
 
 	"github.com/leonf08/metrics-yp.git/internal/auth"
@@ -36,254 +41,271 @@ type Agent struct {
 	storage Repository
 	logger  logger.Logger
 	config  *agentconf.Config
+	signer  *auth.HashSigner
 }
 
-func NewAgent(cl *http.Client, st Repository, l logger.Logger, cfg *agentconf.Config) *Agent {
+func NewAgent(cl *http.Client, st Repository, l logger.Logger, cfg *agentconf.Config, s *auth.HashSigner) *Agent {
 	return &Agent{
 		client:  cl,
 		storage: st,
 		logger:  l,
 		config:  cfg,
+		signer:  s,
 	}
 }
 
 func (a *Agent) Run() error {
 	a.logger.Infoln("Running agent")
-	m := new(runtime.MemStats)
-	url := "http://" + a.config.Addr + "/update"
 
-	pollTime := time.NewTicker(time.Second * time.Duration(a.config.PollInt))
-	reportTime := time.NewTicker(time.Second * time.Duration(a.config.ReportInt))
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
+	defer cancel()
+
+	g, gCtx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		err := a.poll(gCtx)
+		if err != nil {
+			a.logger.Errorln(err)
+		}
+
+		return err
+	})
+
+	g.Go(func() error {
+		err := a.report(gCtx)
+		if err != nil {
+			a.logger.Errorln(err)
+		}
+
+		return err
+	})
+
+	err := g.Wait()
+	a.logger.Infoln("Shutting down agent")
+	return err
+}
+
+func (a *Agent) poll(ctx context.Context) error {
+
+	pollTicker := time.NewTicker(time.Duration(a.config.PollInt) * time.Second)
+	defer pollTicker.Stop()
 
 	for {
 		select {
-		case <-pollTime.C:
-			runtime.ReadMemStats(m)
-			if err := a.storage.Update(context.Background(), m); err != nil {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-pollTicker.C:
+			a.logger.Infoln("Gathering metrics")
+			memStats := new(runtime.MemStats)
+
+			runtime.ReadMemStats(memStats)
+			if err := a.storage.Update(ctx, memStats); err != nil {
 				return err
 			}
-		case <-reportTime.C:
-			if err := a.sendMetricJSON(url); err != nil {
+
+			virtualMem, err := mem.VirtualMemoryWithContext(ctx)
+			if err != nil {
 				return err
+			}
+			totalMem := virtualMem.Total
+			freeMem := virtualMem.Free
+
+			c, err := cpu.PercentWithContext(ctx, 0, false)
+			if err != nil {
+				return err
+			}
+			cpuUtil := c[0]
+			for n, v := range map[string]float64{
+				"TotalMemory": float64(totalMem), "FreeMemory": float64(freeMem), "CPUutilization": cpuUtil} {
+				if err := a.storage.SetVal(ctx, n, v); err != nil {
+					return err
+				}
+			}
+
+			a.logger.Infoln("Metrics gathered")
+		}
+	}
+}
+
+func (a *Agent) report(ctx context.Context) error {
+	reportTicker := time.NewTicker(time.Duration(a.config.ReportInt) * time.Second)
+	defer reportTicker.Stop()
+
+	limiter := ratelimit.New(a.config.RateLim)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-reportTicker.C:
+			tasks, err := a.prepareTasks(ctx)
+			if err != nil {
+				return err
+			}
+
+			pool := newWorkerPool(tasks, runtime.NumCPU(), limiter)
+			pool.run(ctx)
+
+			for _, task := range pool.tasks {
+				if task.err != nil {
+					a.logger.Errorln(task.err)
+					if errors.Is(task.err, errorhandling.ErrRetryFailed) {
+						return task.err
+					}
+				}
 			}
 		}
 	}
 }
 
-func (a *Agent) sendMetricJSON(url string) error {
+func makeJSONBody(metricName string, value any) (*bytes.Reader, error) {
 	var buf bytes.Buffer
 
-	metrics, err := a.storage.ReadAll(context.Background())
+	metStruct := new(models.MetricJSON)
+	m, ok := value.(storage.Metric)
+	if !ok {
+		err := errors.New("invalid type assertion")
+		return nil, err
+	}
+
+	switch v := m.Val.(type) {
+	case float64:
+		metStruct.ID = metricName
+		metStruct.MType = "gauge"
+		metStruct.Value = new(float64)
+		*metStruct.Value = v
+	case int64:
+		metStruct.ID = metricName
+		metStruct.MType = "counter"
+		metStruct.Delta = new(int64)
+		*metStruct.Delta = v
+	default:
+		err := errors.New("invalid metric type")
+		return nil, err
+	}
+
+	gzWriter := gzip.NewWriter(&buf)
+	if err := json.NewEncoder(gzWriter).Encode(&metStruct); err != nil {
+		return nil, err
+	}
+
+	if err := gzWriter.Close(); err != nil {
+		return nil, err
+	}
+
+	return bytes.NewReader(buf.Bytes()), nil
+}
+
+func (a *Agent) sendJSONRequest(ctx context.Context, url string, body *bytes.Reader) error {
+	var buf bytes.Buffer
+	_, err := buf.ReadFrom(body)
 	if err != nil {
-		a.logger.Errorln(err)
 		return err
 	}
 
-	for name, value := range metrics {
-		metStruct := new(models.MetricJSON)
-		m, ok := value.(storage.Metric)
-		if !ok {
-			err := errors.New("invalid type assertion")
+	hashSrc := buf.Bytes()
+
+	return errorhandling.Retry(ctx, func() (err error) {
+		body.Seek(0, 0)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
+		if err != nil {
 			a.logger.Errorln(err)
-			return err
-		}
-
-		switch v := m.Val.(type) {
-		case float64:
-			metStruct.ID = name
-			metStruct.MType = "gauge"
-			metStruct.Value = new(float64)
-			*metStruct.Value = v
-		case int64:
-			metStruct.ID = name
-			metStruct.MType = "counter"
-			metStruct.Delta = new(int64)
-			*metStruct.Delta = v
-		default:
-			err := errors.New("invalid metric type")
-			a.logger.Errorln(err)
-			return err
-		}
-
-		gzWriter := gzip.NewWriter(&buf)
-		if err := json.NewEncoder(gzWriter).Encode(&metStruct); err != nil {
-			a.logger.Errorln(err)
-			return err
-		}
-
-		if err := gzWriter.Close(); err != nil {
-			a.logger.Errorln(err)
-			return err
-		}
-
-		r := bytes.NewReader(buf.Bytes())
-		ctx := context.Background()
-
-		err = errorhandling.Retry(ctx, func() (err error) {
-			r.Seek(0, 0)
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, r)
-			if err != nil {
-				a.logger.Errorln(err)
-				return
-			}
-
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Accept", "application/json")
-			req.Header.Set("Content-Encoding", "gzip")
-
-			if a.config.IsAuthKeyExists() {
-				var hash []byte
-				hash, err = auth.CalcHash(buf.Bytes(), []byte(a.config.Key))
-				if err != nil {
-					a.logger.Errorln(err)
-					return
-				}
-
-				req.Header.Set("HashSHA256", hex.EncodeToString(hash))
-			}
-
-			a.logger.Infoln("Sending request", "address", url)
-
-			resp, err := a.client.Do(req)
-			var opErr *net.OpError
-			if errors.As(err, &opErr) {
-				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
-				a.logger.Errorln(err)
-				return
-			}
-
-			if errors.Is(err, io.EOF) {
-				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, io.EOF.Error())
-				a.logger.Errorln(err)
-				return
-			}
-
-			if err != nil {
-				a.logger.Errorln(err)
-				return
-			}
-
-			defer resp.Body.Close()
-
-			if resp.StatusCode > 501 {
-				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, resp.Status)
-				a.logger.Errorln(err)
-				return
-			}
-
-			buf.Reset()
-			if _, err = buf.ReadFrom(resp.Body); err != nil {
-				a.logger.Errorln(resp.Status, err)
-				return
-			}
-
-			a.logger.Infoln("Response from the server", "status", resp.Status,
-				"body", buf.String())
-
 			return
-		})
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Content-Encoding", "gzip")
+
+		if a.signer != nil {
+			var hash []byte
+			hash, err = a.signer.CalcHash(hashSrc)
+			if err != nil {
+				a.logger.Errorln(err)
+				return
+			}
+
+			req.Header.Set("HashSHA256", hex.EncodeToString(hash))
+		}
+
+		a.logger.Infoln("Sending request", "address", url)
+
+		resp, err := a.client.Do(req)
+		var opErr *net.OpError
+		if errors.As(err, &opErr) {
+			err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
+			a.logger.Errorln(err)
+			return
+		}
+
+		if errors.Is(err, io.EOF) {
+			err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, io.EOF.Error())
+			a.logger.Errorln(err)
+			return
+		}
 
 		if err != nil {
-			return err
+			a.logger.Errorln(err)
+			return
+		}
+
+		defer resp.Body.Close()
+
+		if resp.StatusCode > 501 {
+			err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, resp.Status)
+			a.logger.Errorln(err)
+			return
 		}
 
 		buf.Reset()
-	}
+		if _, err = buf.ReadFrom(resp.Body); err != nil {
+			a.logger.Errorln(resp.Status, err)
+			return
+		}
 
-	return nil
+		a.logger.Infoln("Response from the server", "status", resp.Status,
+			"body", buf.String())
+
+		buf.Reset()
+
+		return
+	})
 }
 
-func (a *Agent) sendMetric(url string) error {
-	metrics, err := a.storage.ReadAll(context.Background())
-	if err != nil {
-		a.logger.Errorln(err)
-		return err
-	}
+func (a *Agent) prepareTasks(ctx context.Context) ([]*task, error) {
+	var tasks []*task
+	switch a.config.Mode {
+	case "json":
+		url := "http://" + a.config.Addr + "/update"
 
-	for name, value := range metrics {
-		m, ok := value.(storage.Metric)
-		if !ok {
-			err := errors.New("invalid type assertion")
-			a.logger.Errorln(err)
-			return err
-		}
-
-		switch m.Type {
-		case "gauge":
-			v, ok := m.Val.(float64)
-			if !ok {
-				err := errors.New("invalid value type in gauge metric")
-				a.logger.Errorln(err)
-				return err
-			}
-			val := strconv.FormatFloat(v, 'f', -1, 64)
-			url = strings.Join([]string{url, "gauge", name, val}, "/")
-		case "counter":
-			v, ok := m.Val.(int64)
-			if !ok {
-				err := errors.New("invalid value type in counter metric")
-				a.logger.Errorln(err)
-				return err
-			}
-			val := strconv.FormatInt(v, 10)
-			url = strings.Join([]string{url, "counter", name, val}, "/")
-		default:
-			err := errors.New("invalid metric type")
-			a.logger.Errorln(err)
-			return err
-		}
-
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, nil)
+		metrics, err := a.storage.ReadAll(ctx)
 		if err != nil {
 			a.logger.Errorln(err)
-			return err
+			return nil, err
 		}
 
-		req.Header.Add("Content-Type", "text/plain")
-
-		a.logger.Infoln("Sending request", req.URL)
-		err = errorhandling.Retry(req.Context(), func() (err error) {
-			resp, err := a.client.Do(req)
-			var opErr *net.OpError
-			if errors.As(err, &opErr) {
-				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, opErr.Error())
-				a.logger.Errorln(err)
-				return
-			}
-
-			if errors.Is(err, io.EOF) {
-				err = fmt.Errorf("%w: %s", errorhandling.ErrRetriable, io.EOF.Error())
-				a.logger.Errorln(err)
-				return
-			}
-
+		bodies := make([]*bytes.Reader, 0)
+		for n, v := range metrics {
+			b, err := makeJSONBody(n, v)
 			if err != nil {
-				return
+				return nil, err
 			}
 
-			defer resp.Body.Close()
+			bodies = append(bodies, b)
+		}
 
-			if resp.StatusCode > 501 {
-				return errorhandling.ErrRetriable
+		tasks = make([]*task, len(bodies))
+		for i, body := range bodies {
+			body := body
+			fn := func(ctx context.Context) error {
+				return a.sendJSONRequest(ctx, url, body)
 			}
 
-			a.logger.Infoln("Response from the server", "status", resp.Status)
-
-			_, err = io.Copy(io.Discard, resp.Body)
-			if err != nil {
-				return
-			}
-
-			return
-		})
-
-		if err != nil {
-			a.logger.Errorln(err)
-			return err
+			tasks[i] = &task{fn: fn}
 		}
 	}
 
-	return nil
+	return tasks, nil
 }
 
 func (a *Agent) sendMetricBatch(url string) error {
@@ -353,9 +375,9 @@ func (a *Agent) sendMetricBatch(url string) error {
 
 		a.logger.Infoln("Sending request", "address", url)
 
-		if a.config.IsAuthKeyExists() {
+		if a.signer != nil {
 			var hash []byte
-			hash, err = auth.CalcHash(buf.Bytes(), []byte(a.config.Key))
+			hash, err = a.signer.CalcHash(buf.Bytes())
 			if err != nil {
 				a.logger.Errorln(err)
 				return

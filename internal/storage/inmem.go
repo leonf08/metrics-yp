@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
+	"sync"
 )
 
 type MemStorage struct {
 	Storage map[string]any `json:"metrics"`
 	fs      *fileStorage
 	counter int64
+	sync.RWMutex
 }
 
 func NewStorage() *MemStorage {
@@ -21,7 +23,10 @@ func NewStorage() *MemStorage {
 	}
 }
 
-func (st *MemStorage) Update(ctx context.Context, v any) error {
+func (st *MemStorage) Update(_ context.Context, v any) error {
+	st.Lock()
+	defer st.Unlock()
+
 	m, ok := v.(*runtime.MemStats)
 	if !ok {
 		return errors.New("invalid input data")
@@ -66,7 +71,10 @@ func (st *MemStorage) Update(ctx context.Context, v any) error {
 	return nil
 }
 
-func (st *MemStorage) SetVal(ctx context.Context, k string, v any) error {
+func (st *MemStorage) SetVal(_ context.Context, k string, v any) error {
+	st.Lock()
+	defer st.Unlock()
+
 	switch val := v.(type) {
 	case float64:
 		st.Storage[k] = Metric{Type: "gauge", Val: val}
@@ -97,7 +105,10 @@ func (st *MemStorage) SetVal(ctx context.Context, k string, v any) error {
 	return nil
 }
 
-func (st *MemStorage) GetVal(ctx context.Context, k string) (any, error) {
+func (st *MemStorage) GetVal(_ context.Context, k string) (any, error) {
+	st.RLock()
+	defer st.RUnlock()
+
 	v, ok := st.Storage[k]
 	if !ok {
 		return Metric{}, fmt.Errorf("metric %s not found", k)
@@ -106,7 +117,9 @@ func (st *MemStorage) GetVal(ctx context.Context, k string) (any, error) {
 	return v, nil
 }
 
-func (st *MemStorage) ReadAll(ctx context.Context) (map[string]any, error) {
+func (st *MemStorage) ReadAll(_ context.Context) (map[string]any, error) {
+	st.RLock()
+	defer st.RUnlock()
 	return st.Storage, nil
 }
 

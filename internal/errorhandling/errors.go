@@ -8,6 +8,7 @@ import (
 )
 
 var ErrRetriable = errors.New("retriable error")
+var ErrRetryFailed = errors.New("all retries failed")
 
 const (
 	attempts   = 3
@@ -50,5 +51,5 @@ func Retry(ctx context.Context, f func() error) error {
 		}
 	}
 
-	return fmt.Errorf("%w: all retries failed", err)
+	return fmt.Errorf("%w: %s", ErrRetryFailed, err)
 }
