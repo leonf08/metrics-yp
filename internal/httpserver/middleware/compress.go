@@ -1,9 +1,11 @@
-package httpserver
+package middleware
 
 import (
 	"compress/gzip"
 	"io"
 	"net/http"
+	"slices"
+	"strings"
 )
 
 var contentTypes = []string{"application/json", "html/text"}
@@ -66,4 +68,34 @@ func (cr *compressReader) Close() error {
 		return err
 	}
 	return cr.gzr.Close()
+}
+
+func Compress(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ow := w
+
+		if slices.Contains(contentTypes, r.Header.Get("Accept")) {
+			acceptEncoding := r.Header.Get("Accept-Encoding")
+			supportsGzip := strings.Contains(acceptEncoding, "gzip")
+			if supportsGzip {
+				cw := newCompressWriter(w)
+				ow = cw
+				defer cw.Close()
+			}
+
+			contentEncoding := r.Header.Get("Content-Encoding")
+			sendsGzip := strings.Contains(contentEncoding, "gzip")
+			if sendsGzip {
+				cr, err := newCompressReader(r.Body)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				r.Body = cr
+				defer cr.Close()
+			}
+		}
+
+		next.ServeHTTP(ow, r)
+	})
 }

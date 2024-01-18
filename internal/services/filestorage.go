@@ -1,13 +1,15 @@
-package storage
+package services
 
 import (
 	"encoding/json"
+	"errors"
+	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 	"os"
 	"path/filepath"
 )
 
 type (
-	fileStorage struct {
+	FileStorage struct {
 		s *saver
 		l *loader
 	}
@@ -23,7 +25,7 @@ type (
 	}
 )
 
-func newFileStorage(path string) (*fileStorage, error) {
+func NewFileStorage(path string) (*FileStorage, error) {
 	s, err := newSaver(path)
 	if err != nil {
 		return nil, err
@@ -34,7 +36,7 @@ func newFileStorage(path string) (*fileStorage, error) {
 		return nil, err
 	}
 
-	return &fileStorage{
+	return &FileStorage{
 		s: s,
 		l: l,
 	}, nil
@@ -77,7 +79,12 @@ func newLoader(path string) (*loader, error) {
 	}, nil
 }
 
-func (fs *fileStorage) save(m *MemStorage) error {
+func (fs *FileStorage) Save(r Repository) error {
+	m, ok := r.(*repo.MemStorage)
+	if !ok {
+		return errors.New("invalid type assertion for in-memory storage")
+	}
+
 	err := fs.s.file.Truncate(0)
 	if err != nil {
 		return err
@@ -90,29 +97,30 @@ func (fs *fileStorage) save(m *MemStorage) error {
 
 	fs.s.encoder.SetIndent("", "    ")
 
-	return fs.s.encoder.Encode(m)
+	return fs.s.encoder.Encode(&m.Storage)
 }
 
-func (fs *fileStorage) load() (*MemStorage, error) {
-	m := &MemStorage{
-		Storage: make(map[string]any, 30),
+func (fs *FileStorage) Load(r Repository) error {
+	m, ok := r.(*repo.MemStorage)
+	if !ok {
+		return errors.New("invalid type assertion for in-memory storage")
 	}
 
 	info, err := fs.l.file.Stat()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if info.Size() > 0 {
-		if err := fs.l.decoder.Decode(m); err != nil {
-			return nil, err
+		if err := fs.l.decoder.Decode(&m.Storage); err != nil {
+			return err
 		}
 	}
 
-	return m, nil
+	return nil
 }
 
-func (fs *fileStorage) close() {
+func (fs *FileStorage) Close() {
 	fs.s.file.Close()
 	fs.l.file.Close()
 }

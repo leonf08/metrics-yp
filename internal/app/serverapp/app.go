@@ -1,124 +1,86 @@
 package serverapp
 
 import (
-	"flag"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/leonf08/metrics-yp.git/internal/auth"
-
-	"go.uber.org/zap"
-
-	"github.com/caarlos0/env/v6"
-	"github.com/go-chi/chi/v5"
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
-	"github.com/leonf08/metrics-yp.git/internal/server/httpserver"
-	"github.com/leonf08/metrics-yp.git/internal/server/logger"
-	"github.com/leonf08/metrics-yp.git/internal/storage"
+	"github.com/leonf08/metrics-yp.git/internal/httpserver"
+	"github.com/leonf08/metrics-yp.git/internal/logger"
+	"github.com/leonf08/metrics-yp.git/internal/services"
+	"github.com/leonf08/metrics-yp.git/internal/services/repo"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
-func StartApp() error {
-	server, err := initServer()
-	if err != nil {
-		return err
-	}
+func Run(cfg serverconf.Config) {
+	log := logger.NewLogger()
 
-	router := chi.NewRouter()
-	router.Use(server.LoggingMiddleware, server.AuthMiddleware, server.CompressMiddleware, middleware.Recoverer)
-	router.Route("/", func(r chi.Router) {
-		r.Get("/", server.Default)
-		r.Post("/", server.Default)
-		r.Get("/ping", server.PingDB)
-		r.Post("/updates/", server.UpdateMetricsBatch)
-		r.Route("/value", func(r chi.Router) {
-			r.Get("/{type}/{name}", server.GetMetric)
-			r.Post("/", server.GetMetricJSON)
-		})
-		r.Route("/update", func(r chi.Router) {
-			r.Post("/", server.UpdateMetricJSON)
-			r.Post("/{type}/{name}/{val}", server.UpdateMetric)
-		})
-	})
-	server.RegisterHandler(router)
+	s := services.NewHashSigner(cfg.Key)
 
-	return server.Run()
-}
-
-func initServer() (*httpserver.Server, error) {
-	l, err := initLogger()
-	if err != nil {
-		return nil, err
-	}
-	log := logger.NewLogger(l)
-
-	config, err := getConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	repo, err := initRepo(config)
-	if err != nil {
-		return nil, err
-	}
-
-	signer := auth.NewHashSigner(config.Key)
-
-	s := httpserver.NewServer(repo, config, log, signer)
-
-	return s, nil
-}
-
-func initLogger() (logger.Logger, error) {
-	lvl, err := zap.ParseAtomicLevel("info")
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := zap.NewProductionConfig()
-	cfg.Level = lvl
-	zl, err := cfg.Build()
-	if err != nil {
-		return nil, err
-	}
-
-	return zl.Sugar(), nil
-}
-
-func getConfig() (*serverconf.Config, error) {
-	address := flag.String("a", ":8080", "Host address of the server")
-	storeInt := flag.Int("i", 300, "Store interval for the metrics")
-	filePath := flag.String("f", "tmp/metrics-db.json", "Path to file for metrics storage")
-	dbAddr := flag.String("d", "", "Database address")
-	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")
-	key := flag.String("k", "", "Authentication key")
-	flag.Parse()
-
-	cfg := serverconf.NewConfig(*storeInt, *address, *filePath, *dbAddr, *key, *restore)
-	if err := env.Parse(cfg); err != nil {
-		return nil, err
-	}
-
-	return cfg, nil
-}
-
-func initRepo(cfg *serverconf.Config) (httpserver.Repository, error) {
-	var repo httpserver.Repository
+	var (
+		r  services.Repository
+		fs services.FileStore
+	)
 	if cfg.IsInMemStorage() {
-		st := storage.NewStorage()
+		r = repo.NewStorage()
 
 		if cfg.IsFileStorage() {
-			err := st.WithFileStorage(cfg.FileStoragePath)
+			fileStorage, err := services.NewFileStorage(cfg.FileStoragePath)
 			if err != nil {
-				return nil, err
+				log.Error("app - Run - NewFileStorage", "error", err)
+				return
+			}
+
+			if cfg.Restore {
+				log.Info("app - Run - Load metrics from file")
+				err = fileStorage.Load(r)
+				if err != nil {
+					log.Error("app - Run - fileStorage.Load", "error", err)
+					return
+				}
+			}
+
+			if cfg.StoreInt > 0 {
+				go func() {
+					for {
+						<-time.After(time.Duration(cfg.StoreInt) * time.Second)
+						log.Info("app - Run - Save metrics to file")
+						if err = fileStorage.Save(r); err != nil {
+							log.Error("app - Run - fileStorage.Save", "error", err)
+						}
+					}
+				}()
+			} else {
+				fs = fileStorage
 			}
 		}
-		repo = st
 	} else {
-		db, err := storage.NewDB(cfg.DatabaseAddr)
+		db, err := repo.NewDB(cfg.DatabaseAddr)
 		if err != nil {
-			return nil, err
+			log.Error("app - Run - NewDB", "error", err)
+			return
 		}
 
-		repo = db
+		r = db
 	}
 
-	return repo, nil
+	router := httpserver.NewRouter(s, r, fs, log)
+	server := httpserver.NewServer(router, cfg.Addr)
+	log.Info("app - Run - server.ListenAndServe", "address", cfg.Addr)
+
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case err := <-server.Err():
+		log.Error("app - Run - server.Err", "error", err)
+	case sig := <-interrupt:
+		log.Info("app - Run - interrupt", "signal", sig.String())
+	}
+
+	log.Info("app - Run - shutdown")
+	err := server.Shutdown()
+	if err != nil {
+		log.Error("app - Run - server.Shutdown", "error", err)
+	}
 }

@@ -1,4 +1,4 @@
-package auth
+package services
 
 import (
 	"crypto/hmac"
@@ -15,10 +15,6 @@ type HashSigner struct {
 }
 
 func NewHashSigner(key string) *HashSigner {
-	if key == "" {
-		return nil
-	}
-
 	return &HashSigner{
 		key: key,
 	}

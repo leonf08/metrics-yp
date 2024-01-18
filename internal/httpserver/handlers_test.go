@@ -3,16 +3,15 @@ package httpserver
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
+	"github.com/leonf08/metrics-yp.git/internal/models"
+	"github.com/leonf08/metrics-yp.git/internal/services"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
-	"github.com/leonf08/metrics-yp.git/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,72 +23,55 @@ type want struct {
 }
 
 type MockStorage struct {
+	storage map[string]models.Metric
 	counter int64
-	storage map[string]any
 }
 
-func (m *MockStorage) Update(ctx context.Context, v any) error {
+func (m *MockStorage) Update(_ context.Context, _ any) error {
 	return nil
 }
 
-func (m *MockStorage) ReadAll(ctx context.Context) (map[string]any, error) {
+func (m *MockStorage) ReadAll(_ context.Context) (map[string]models.Metric, error) {
 	return m.storage, nil
 }
 
-func (m *MockStorage) GetVal(ctx context.Context, k string) (any, error) {
+func (m *MockStorage) GetVal(_ context.Context, k string) (models.Metric, error) {
 	v, ok := m.storage[k]
 	if !ok {
-		return nil, fmt.Errorf("metric %s not found", k)
+		return models.Metric{}, fmt.Errorf("metric %s not found", k)
 	}
 
 	return v, nil
 }
 
-func (m *MockStorage) SetVal(ctx context.Context, k string, v any) error {
-	switch val := v.(type) {
-	case float64:
-		m.storage[k] = storage.Metric{Type: "gauge", Val: val}
-	case int64:
-		_, ok := m.storage[k]
-		if !ok {
-			m.storage[k] = storage.Metric{Type: "counter", Val: val}
-			break
-		}
-
-		met, ok := m.storage[k].(storage.Metric)
-		if !ok {
-			return errors.New("failed type assertion")
-		}
-
-		c, ok := met.Val.(int64)
-		if !ok {
-			return errors.New("failed type assertion")
-		}
-
-		m.storage[k] = storage.Metric{Type: "counter", Val: c + val}
-	case storage.Metric:
-		m.storage[k] = val
-	default:
-		return errors.New("incorrect type of value")
-	}
-
+func (m *MockStorage) SetVal(_ context.Context, k string, metric models.Metric) error {
+	m.storage[k] = metric
 	return nil
 }
 
-type moclLogger struct {}
+type moclLogger struct{}
 
-func (m moclLogger) Infoln(args ...any) {}
-func (m moclLogger) Errorln(args ...any) {}
-func (m moclLogger) Fatalln(args ...any) {}
+func (m moclLogger) Info(_ string, _ ...any)  {}
+func (m moclLogger) Error(_ string, _ ...any) {}
+
+type mockFileStore struct{}
+
+func (m mockFileStore) Save(_ services.Repository) error {
+	return nil
+}
+
+func (m mockFileStore) Load(_ services.Repository) error {
+	return nil
+}
 
 func TestGetMetric(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]any{
-			"Metric1": storage.Metric{
+		storage: map[string]models.Metric{
+			"Metric1": {
 				Type: "gauge",
-				Val:  float64(2.5),
+				Val:  2.5,
 			},
-			"Metric2": storage.Metric{
+			"Metric2": {
 				Type: "counter",
 				Val:  int64(3),
 			},
@@ -141,11 +123,14 @@ func TestGetMetric(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
-			server := &Server{
-				storage: storage,
-				logger: moclLogger{},
+
+			h := &handler{
+				repo: storage,
+				fs:   mockFileStore{},
+				log:  moclLogger{},
 			}
-			route.Get("/value/{type}/{name}", server.GetMetric)
+
+			route.Get("/value/{type}/{name}", h.GetMetric)
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -168,7 +153,7 @@ func TestGetMetric(t *testing.T) {
 
 func TestUpdateMetric(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]any{},
+		storage: map[string]models.Metric{},
 	}
 
 	tests := []struct {
@@ -204,11 +189,14 @@ func TestUpdateMetric(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
-			server := &Server{
-				storage: storage,
-				logger: moclLogger{},
+
+			h := &handler{
+				repo: storage,
+				fs:   mockFileStore{},
+				log:  moclLogger{},
 			}
-			route.Post("/update/{type}/{name}/{val}", server.UpdateMetric)
+
+			route.Post("/update/{type}/{name}/{val}", h.UpdateMetric)
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -227,7 +215,7 @@ func TestUpdateMetric(t *testing.T) {
 
 func TestDefaultHandler(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]any{},
+		storage: map[string]models.Metric{},
 	}
 
 	tests := []struct {
@@ -267,12 +255,15 @@ func TestDefaultHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
-			server := &Server{
-				storage: storage,
-				logger: moclLogger{},
+
+			h := &handler{
+				repo: storage,
+				fs:   mockFileStore{},
+				log:  moclLogger{},
 			}
-			route.Get("/", server.Default)
-			route.Post("/", server.Default)
+
+			route.Get("/", h.Default)
+			route.Post("/", h.Default)
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -291,12 +282,12 @@ func TestDefaultHandler(t *testing.T) {
 
 func TestGetMetricJSON(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]any{
-			"Metric1": storage.Metric{
+		storage: map[string]models.Metric{
+			"Metric1": {
 				Type: "gauge",
-				Val:  float64(2.5),
+				Val:  2.5,
 			},
-			"Metric2": storage.Metric{
+			"Metric2": {
 				Type: "counter",
 				Val:  int64(3),
 			},
@@ -347,12 +338,15 @@ func TestGetMetricJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
-			server := &Server{
-				storage: storage,
-				logger: moclLogger{},
+
+			h := &handler{
+				repo: storage,
+				fs:   mockFileStore{},
+				log:  moclLogger{},
 			}
+
 			route.Route("/value", func(r chi.Router) {
-				r.Post("/", server.GetMetricJSON)
+				r.Post("/", h.GetMetricJSON)
 			})
 			s := httptest.NewServer(route)
 			defer s.Close()
@@ -380,7 +374,7 @@ func TestGetMetricJSON(t *testing.T) {
 
 func TestUpdateMetricJSON(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]any{},
+		storage: map[string]models.Metric{},
 	}
 
 	tests := []struct {
@@ -427,15 +421,15 @@ func TestUpdateMetricJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
-			server := &Server{
-				storage: storage,
-				config: &serverconf.Config{
-					StoreInt: 1,
-				},
-				logger: moclLogger{},
+
+			h := &handler{
+				repo: storage,
+				fs:   nil,
+				log:  moclLogger{},
 			}
+
 			route.Route("/update", func(r chi.Router) {
-				r.Post("/", server.UpdateMetricJSON)
+				r.Post("/", h.UpdateMetricJSON)
 			})
 			s := httptest.NewServer(route)
 			defer s.Close()
@@ -463,7 +457,7 @@ func TestUpdateMetricJSON(t *testing.T) {
 
 func TestUpdateMetricsBatch(t *testing.T) {
 	storage := &MockStorage{
-		storage: map[string]any{},
+		storage: map[string]models.Metric{},
 	}
 
 	tests := []struct {
@@ -477,46 +471,49 @@ func TestUpdateMetricsBatch(t *testing.T) {
 			name:    "test 1, update Metrics by batch",
 			method:  http.MethodPost,
 			request: "/updates/",
-			body: `[{"id": "Metric1", "type": "gauge", "value": 2.5}, 
+			body: `[{"id": "Metric1", "type": "gauge", "value": 2.5},
 			{"id": "Metric2", "type": "gauge", "value": 3.5}]`,
 			want: want{
 				code:        http.StatusOK,
 				contentType: "application/json",
-				body: `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
+				body:        `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
 			},
 		},
 		{
 			name:    "test 2, update one Metric",
 			method:  http.MethodPost,
 			request: "/updates/",
-			body: `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
+			body:    `{"id": "Metric1", "type": "gauge", "value": 2.5}`,
 			want: want{
 				code:        http.StatusBadRequest,
 				contentType: "text/plain; charset=utf-8",
-				body: "",
+				body:        "",
 			},
 		},
 		{
 			name:    "test 3, update Metrics by batch, invalid type",
 			method:  http.MethodPost,
 			request: "/updates/",
-			body: `[{"id": "Metric1", "type": "invalid", "value": 2.5}, 
+			body: `[{"id": "Metric1", "type": "invalid", "value": 2.5},
 			{"id": "Metric2", "type": "gauge", "value": 3.5}]`,
 			want: want{
 				code:        http.StatusBadRequest,
 				contentType: "text/plain; charset=utf-8",
-				body: "",
+				body:        "",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			route := chi.NewRouter()
-			server := &Server{
-				storage: storage,
-				logger: moclLogger{},
+
+			h := &handler{
+				repo: storage,
+				fs:   mockFileStore{},
+				log:  moclLogger{},
 			}
-			route.Post("/updates/", server.UpdateMetricsBatch)
+
+			route.Post("/updates/", h.UpdateMetricsBatch)
 			s := httptest.NewServer(route)
 			defer s.Close()
 

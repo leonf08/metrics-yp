@@ -1,15 +1,15 @@
-package storage
+package repo
 
 import (
 	"context"
 	"errors"
-	"github.com/golang-migrate/migrate/v4"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/leonf08/metrics-yp.git/internal/database/migrations/postgres"
 	"github.com/leonf08/metrics-yp.git/internal/errorhandling"
+	"github.com/leonf08/metrics-yp.git/internal/models"
 )
 
 type PGStorage struct {
@@ -21,18 +21,8 @@ func NewDB(sourceName string) (*PGStorage, error) {
 		return nil, nil
 	}
 
-	db, err := sqlx.Open("pgx", sourceName)
+	db, err := postgres.NewConnection(sourceName)
 	if err != nil {
-		return nil, err
-	}
-
-	m, err := postgres.Migrate(db.DB)
-	if err != nil {
-		return nil, err
-	}
-
-	err = m.Up()
-	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return nil, err
 	}
 
@@ -46,7 +36,7 @@ func (st *PGStorage) Ping() error {
 }
 
 func (st *PGStorage) Update(ctx context.Context, v any) error {
-	metrics, ok := v.([]MetricDB)
+	metrics, ok := v.([]models.MetricDB)
 	if !ok {
 		return errors.New("invalid type assertion")
 	}
@@ -60,7 +50,7 @@ func (st *PGStorage) Update(ctx context.Context, v any) error {
 			WHEN $2 = 'counter' THEN metrics.VALUE + $3
 			ELSE $3
 		END
-		WHERE metrics.NAME = $1;`
+		WHERE metrics.NAME = $1`
 
 	fn := func() error {
 		tx, err := st.db.BeginTxx(ctx, nil)
@@ -104,7 +94,7 @@ func (st *PGStorage) Update(ctx context.Context, v any) error {
 	return err
 }
 
-func (st *PGStorage) ReadAll(ctx context.Context) (map[string]any, error) {
+func (st *PGStorage) ReadAll(ctx context.Context) (map[string]models.Metric, error) {
 	const queryStr = `SELECT * FROM metrics`
 
 	var rows *sqlx.Rows
@@ -134,9 +124,9 @@ func (st *PGStorage) ReadAll(ctx context.Context) (map[string]any, error) {
 
 	defer rows.Close()
 
-	metrics := make(map[string]any, 30)
+	metrics := make(map[string]models.Metric, 30)
 	for rows.Next() {
-		var m MetricDB
+		var m models.MetricDB
 		if err := rows.StructScan(&m); err != nil {
 			return nil, err
 		}
@@ -159,7 +149,7 @@ func (st *PGStorage) ReadAll(ctx context.Context) (map[string]any, error) {
 	return metrics, nil
 }
 
-func (st *PGStorage) SetVal(ctx context.Context, k string, v any) error {
+func (st *PGStorage) SetVal(ctx context.Context, k string, m models.Metric) error {
 	const queryStr = `
 		INSERT INTO metrics (NAME, TYPE, VALUE)
 		VALUES ($1, $2, $3)
@@ -169,18 +159,10 @@ func (st *PGStorage) SetVal(ctx context.Context, k string, v any) error {
 			WHEN $2 = 'counter' THEN metrics.VALUE + $3
 			ELSE $3
 		END
-		WHERE metrics.NAME = $1;`
-
-	var t string
-	_, ok := v.(float64)
-	if ok {
-		t = "gauge"
-	} else {
-		t = "counter"
-	}
+		WHERE metrics.NAME = $1`
 
 	err := errorhandling.Retry(ctx, func() error {
-		_, err := st.db.ExecContext(ctx, queryStr, k, t, v)
+		_, err := st.db.ExecContext(ctx, queryStr, k, m.Type, m.Val)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) &&
@@ -196,10 +178,10 @@ func (st *PGStorage) SetVal(ctx context.Context, k string, v any) error {
 	return err
 }
 
-func (st *PGStorage) GetVal(ctx context.Context, k string) (any, error) {
+func (st *PGStorage) GetVal(ctx context.Context, k string) (models.Metric, error) {
 	queryStr := `SELECT TYPE, VALUE FROM metrics WHERE NAME = $1`
 
-	var m Metric
+	var m models.Metric
 
 	err := errorhandling.Retry(ctx, func() error {
 		row := st.db.QueryRowxContext(ctx, queryStr, k)
