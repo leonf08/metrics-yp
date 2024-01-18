@@ -10,7 +10,7 @@ import (
 
 const (
 	defaultAddress   = "http://127.0.0.1:8080"
-	defaultReportInt = 20
+	defaultReportInt = 10
 	defaultPollInt   = 2
 	defaultKey       = ""
 	defaultRateLimit = 10
