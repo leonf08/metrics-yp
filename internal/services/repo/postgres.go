@@ -184,8 +184,7 @@ func (st *PGStorage) GetVal(ctx context.Context, k string) (models.Metric, error
 	var m models.Metric
 
 	err := errorhandling.Retry(ctx, func() error {
-		row := st.db.QueryRowxContext(ctx, queryStr, k)
-		err := row.StructScan(&m)
+		err := st.db.GetContext(ctx, &m, queryStr, k)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) &&

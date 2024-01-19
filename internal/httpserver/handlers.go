@@ -28,7 +28,7 @@ func newHandler(r *chi.Mux, repo services.Repository, fs services.FileStore, l z
 	r.Get("/", h.Default)
 	r.Post("/", h.Default)
 	r.Get("/ping", h.PingDB)
-	r.Post("/updates", h.UpdateMetricsBatch)
+	r.Post("/updates/", h.UpdateMetricsBatch)
 	r.Route("/value", func(r chi.Router) {
 		r.Get("/{type}/{name}", h.GetMetric)
 		r.Post("/", h.GetMetricJSON)
