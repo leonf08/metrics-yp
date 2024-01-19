@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	defaultAddress   = "http://127.0.0.1:8080"
+	defaultAddress   = "localhost:8080"
 	defaultReportInt = 10
 	defaultPollInt   = 2
 	defaultKey       = ""

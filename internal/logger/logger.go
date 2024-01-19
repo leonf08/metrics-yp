@@ -1,24 +1,15 @@
 package logger
 
 import (
-	"log/slog"
+	"github.com/rs/zerolog"
 	"os"
-	"path/filepath"
 )
 
-func NewLogger() *slog.Logger {
-	replacer := func(groups []string, a slog.Attr) slog.Attr {
-		if a.Key == slog.SourceKey {
-			source := a.Value.Any().(*slog.Source)
-			source.File = filepath.Base(source.File)
-		}
-		return a
-	}
+func NewLogger() zerolog.Logger {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
-	l := slog.New(slog.NewJSONHandler(
-		os.Stdout,
-		&slog.HandlerOptions{AddSource: true, Level: slog.LevelInfo, ReplaceAttr: replacer}),
-	)
+	log := zerolog.New(os.Stderr).With().Timestamp().Logger()
 
-	return l
+	return log
 }

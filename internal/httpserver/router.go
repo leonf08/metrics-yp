@@ -5,14 +5,14 @@ import (
 	chiMw "github.com/go-chi/chi/v5/middleware"
 	"github.com/leonf08/metrics-yp.git/internal/httpserver/middleware"
 	"github.com/leonf08/metrics-yp.git/internal/services"
-	"log/slog"
+	"github.com/rs/zerolog"
 )
 
 func NewRouter(
 	s *services.HashSigner,
 	repo services.Repository,
 	fs services.FileStore,
-	l *slog.Logger,
+	l zerolog.Logger,
 ) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.Logging(l), middleware.Auth(s), middleware.Compress, chiMw.Recoverer)

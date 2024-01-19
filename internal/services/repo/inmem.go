@@ -75,7 +75,19 @@ func (st *MemStorage) SetVal(_ context.Context, k string, m models.Metric) error
 	st.Lock()
 	defer st.Unlock()
 
-	st.Storage[k] = m
+	switch m.Type {
+	case "gauge":
+		st.Storage[k] = m
+	case "counter":
+		v, ok := st.Storage[k]
+		if !ok {
+			st.Storage[k] = m
+		} else {
+			st.Storage[k] = models.Metric{Type: m.Type, Val: v.Val.(int64) + m.Val.(int64)}
+		}
+	default:
+		return errors.New("invalid metric type")
+	}
 
 	return nil
 }

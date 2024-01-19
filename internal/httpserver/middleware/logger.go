@@ -2,30 +2,26 @@ package middleware
 
 import (
 	"github.com/go-chi/chi/v5/middleware"
-	"log/slog"
+	"github.com/rs/zerolog"
 	"net/http"
 	"time"
 )
 
-func Logging(l *slog.Logger) func(next http.Handler) http.Handler {
+func Logging(l zerolog.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		log := l.With(slog.String("component", "middleware/logger"))
+		log := l.With().Str("component", "middleware/logging").Logger()
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			entry := log.With(
-				slog.String("method", r.Method),
-				slog.String("url", r.URL.Path),
-			)
+			entry := log.With().Str("method", r.Method).Str("url", r.URL.Path).Logger()
 
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 			t := time.Now()
 			defer func() {
-				entry.Info(
-					"response",
-					slog.Int("status", ww.Status()),
-					slog.Int("size", ww.BytesWritten()),
-					slog.String("duration", time.Since(t).String()),
-				)
+				entry.Info().
+					Int("status", ww.Status()).
+					Int("size", ww.BytesWritten()).
+					Str("duration", time.Since(t).String()).
+					Msg("response")
 			}()
 
 			next.ServeHTTP(ww, r)

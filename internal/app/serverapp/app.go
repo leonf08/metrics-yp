@@ -27,15 +27,15 @@ func Run(cfg serverconf.Config) {
 		if cfg.IsFileStorage() {
 			fileStorage, err := services.NewFileStorage(cfg.FileStoragePath)
 			if err != nil {
-				log.Error("app - Run - NewFileStorage", "error", err)
+				log.Error().Err(err).Msg("app - Run - NewFileStorage")
 				return
 			}
 
 			if cfg.Restore {
-				log.Info("app - Run - Load metrics from file")
+				log.Info().Msg("app - Run - Restore metrics from file")
 				err = fileStorage.Load(r)
 				if err != nil {
-					log.Error("app - Run - fileStorage.Load", "error", err)
+					log.Error().Err(err).Msg("app - Run - fileStorage.Load")
 					return
 				}
 			}
@@ -44,9 +44,9 @@ func Run(cfg serverconf.Config) {
 				go func() {
 					for {
 						<-time.After(time.Duration(cfg.StoreInt) * time.Second)
-						log.Info("app - Run - Save metrics to file")
+						log.Info().Msg("app - Run - Save metrics to file")
 						if err = fileStorage.Save(r); err != nil {
-							log.Error("app - Run - fileStorage.Save", "error", err)
+							log.Error().Err(err).Msg("app - Run - fileStorage.Save")
 						}
 					}
 				}()
@@ -57,7 +57,7 @@ func Run(cfg serverconf.Config) {
 	} else {
 		db, err := repo.NewDB(cfg.DatabaseAddr)
 		if err != nil {
-			log.Error("app - Run - NewDB", "error", err)
+			log.Error().Err(err).Msg("app - Run - NewDB")
 			return
 		}
 
@@ -66,21 +66,21 @@ func Run(cfg serverconf.Config) {
 
 	router := httpserver.NewRouter(s, r, fs, log)
 	server := httpserver.NewServer(router, cfg.Addr)
-	log.Info("app - Run - server.ListenAndServe", "address", cfg.Addr)
+	log.Info().Str("address", cfg.Addr).Msg("app - Run - Starting server")
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 
 	select {
 	case err := <-server.Err():
-		log.Error("app - Run - server.Err", "error", err)
+		log.Error().Err(err).Msg("app - Run - server.Err")
 	case sig := <-interrupt:
-		log.Info("app - Run - interrupt", "signal", sig.String())
+		log.Info().Str("signal", sig.String()).Msg("app - Run - signal")
 	}
 
-	log.Info("app - Run - shutdown")
+	log.Info().Msg("app - Run - Stopping server")
 	err := server.Shutdown()
 	if err != nil {
-		log.Error("app - Run - server.Shutdown", "error", err)
+		log.Error().Err(err).Msg("app - Run - server.Shutdown")
 	}
 }

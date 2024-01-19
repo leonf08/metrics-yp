@@ -6,6 +6,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
 	"github.com/leonf08/metrics-yp.git/internal/services"
+	"github.com/rs/zerolog"
 	"go.uber.org/ratelimit"
 	"runtime"
 	"time"
@@ -21,12 +22,12 @@ type Client struct {
 	client *resty.Client
 	agent  services.Agent
 	signer services.Signer
-	log    services.Logger
+	log    zerolog.Logger
 	config agentconf.Config
 }
 
-func NewClient(cl *resty.Client, a services.Agent, s services.Signer, l services.Logger,
-	config agentconf.Config) *Client {
+func NewClient(cl *resty.Client, a services.Agent, s services.Signer,
+	l zerolog.Logger, config agentconf.Config) *Client {
 	return &Client{
 		client: cl,
 		agent:  a,
@@ -55,9 +56,9 @@ func (c *Client) poll(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			c.log.Info("client - Start - Gathering metrics")
+			c.log.Info().Msg("client - Start - Gathering metrics")
 			if err := c.agent.GatherMetrics(ctx); err != nil {
-				c.log.Error("client - Start - GatherMetrics", "error", err)
+				c.log.Error().Err(err).Msg("GatherMetrics")
 			}
 		}
 	}
@@ -65,18 +66,18 @@ func (c *Client) poll(ctx context.Context) {
 
 func (c *Client) report(ctx context.Context) {
 	if c.config.Mode == "batch" {
-		c.client.SetBaseURL(c.config.Addr + "/updates")
+		c.client.SetBaseURL("http://" + c.config.Addr + "/updates")
 	} else {
-		c.client.SetBaseURL(c.config.Addr + "/update")
+		c.client.SetBaseURL("http://" + c.config.Addr + "/update")
 	}
 
 	c.client.OnBeforeRequest(func(cl *resty.Client, r *resty.Request) error {
-		c.log.Info("sending request", "method", r.Method, "url", r.URL)
+		c.log.Info().Str("method", r.Method).Str("url", r.URL).Msg("sending request")
 		return nil
 	})
 
 	c.client.OnAfterResponse(func(cl *resty.Client, r *resty.Response) error {
-		c.log.Info("received response", "status", r.Status(), "body", r.String())
+		c.log.Info().Str("status", r.Status()).Str("body", string(r.Body())).Msg("received response")
 		return nil
 	})
 
@@ -107,14 +108,14 @@ func (c *Client) report(ctx context.Context) {
 		case <-t.C:
 			payload, err := c.agent.ReportMetrics(ctx)
 			if err != nil {
-				c.log.Error("client - Start - ReportMetrics", "error", err)
+				c.log.Error().Err(err).Msg("ReportMetrics")
 				return
 			}
 
 			if c.config.Mode == "batch" {
-				_, err := c.client.R().SetBody(payload[0]).SetContext(ctx).Post("")
+				_, err = c.client.R().SetBody(payload[0]).SetContext(ctx).Post("")
 				if err != nil {
-					c.log.Error("client - Start - ReportMetrics", "error", err)
+					c.log.Error().Err(err).Msg("client - Start - Send batch request")
 				}
 			} else {
 				tasks := make([]task, 0, len(payload))
@@ -125,7 +126,7 @@ func (c *Client) report(ctx context.Context) {
 						if c.signer != nil {
 							hash, err := c.signer.CalcHash([]byte(p))
 							if err != nil {
-								c.log.Error("client - Start - ReportMetrics", "error", err)
+								c.log.Error().Err(err).Msg("client - Start - CalcHash")
 								return
 							}
 
@@ -156,7 +157,7 @@ func (c *Client) report(ctx context.Context) {
 				result := pool.run()
 				for err := range result {
 					if err != nil {
-						c.log.Error("client - Start - ReportMetrics", "error", err)
+						c.log.Error().Err(err).Msg("client - Start - Send request")
 					}
 				}
 			}

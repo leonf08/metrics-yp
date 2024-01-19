@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/leonf08/metrics-yp.git/internal/models"
 	"github.com/leonf08/metrics-yp.git/internal/services"
+	"github.com/rs/zerolog"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -48,11 +49,6 @@ func (m *MockStorage) SetVal(_ context.Context, k string, metric models.Metric) 
 	m.storage[k] = metric
 	return nil
 }
-
-type moclLogger struct{}
-
-func (m moclLogger) Info(_ string, _ ...any)  {}
-func (m moclLogger) Error(_ string, _ ...any) {}
 
 type mockFileStore struct{}
 
@@ -127,7 +123,7 @@ func TestGetMetric(t *testing.T) {
 			h := &handler{
 				repo: storage,
 				fs:   mockFileStore{},
-				log:  moclLogger{},
+				log:  zerolog.Logger{},
 			}
 
 			route.Get("/value/{type}/{name}", h.GetMetric)
@@ -193,7 +189,7 @@ func TestUpdateMetric(t *testing.T) {
 			h := &handler{
 				repo: storage,
 				fs:   mockFileStore{},
-				log:  moclLogger{},
+				log:  zerolog.Logger{},
 			}
 
 			route.Post("/update/{type}/{name}/{val}", h.UpdateMetric)
@@ -259,7 +255,7 @@ func TestDefaultHandler(t *testing.T) {
 			h := &handler{
 				repo: storage,
 				fs:   mockFileStore{},
-				log:  moclLogger{},
+				log:  zerolog.Logger{},
 			}
 
 			route.Get("/", h.Default)
@@ -342,7 +338,7 @@ func TestGetMetricJSON(t *testing.T) {
 			h := &handler{
 				repo: storage,
 				fs:   mockFileStore{},
-				log:  moclLogger{},
+				log:  zerolog.Logger{},
 			}
 
 			route.Route("/value", func(r chi.Router) {
@@ -425,7 +421,7 @@ func TestUpdateMetricJSON(t *testing.T) {
 			h := &handler{
 				repo: storage,
 				fs:   nil,
-				log:  moclLogger{},
+				log:  zerolog.Logger{},
 			}
 
 			route.Route("/update", func(r chi.Router) {
@@ -510,7 +506,7 @@ func TestUpdateMetricsBatch(t *testing.T) {
 			h := &handler{
 				repo: storage,
 				fs:   mockFileStore{},
-				log:  moclLogger{},
+				log:  zerolog.Logger{},
 			}
 
 			route.Post("/updates/", h.UpdateMetricsBatch)

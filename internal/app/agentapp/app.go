@@ -31,7 +31,7 @@ func Run(cfg agentconf.Config) {
 	defer cancel()
 
 	// Start client
-	log.Info("app - Run - Starting client", "mode", cfg.Mode)
+	log.Info().Str("mode", cfg.Mode).Msg("app - Run - Client started")
 	cl.Start(ctx)
-	log.Info("app - Run - Client stopped")
+	log.Info().Msg("app - Run - Client stopped")
 }

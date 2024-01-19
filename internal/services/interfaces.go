@@ -30,9 +30,4 @@ type (
 	Pinger interface {
 		Ping() error
 	}
-
-	Logger interface {
-		Info(msg string, args ...any)
-		Error(msg string, args ...any)
-	}
 )
