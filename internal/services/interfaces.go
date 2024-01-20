@@ -11,11 +11,6 @@ type (
 		ReportMetrics(context.Context) ([]string, error)
 	}
 
-	Signer interface {
-		CalcHash([]byte) ([]byte, error)
-		CheckHash(h1, h2 []byte) bool
-	}
-
 	Repository interface {
 		ReadAll(context.Context) (map[string]models.Metric, error)
 		Update(context.Context, any) error
