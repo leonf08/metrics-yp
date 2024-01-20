@@ -21,12 +21,12 @@ const (
 type Client struct {
 	client *resty.Client
 	agent  services.Agent
-	signer services.Signer
+	signer *services.HashSigner
 	log    zerolog.Logger
 	config agentconf.Config
 }
 
-func NewClient(cl *resty.Client, a services.Agent, s services.Signer,
+func NewClient(cl *resty.Client, a services.Agent, s *services.HashSigner,
 	l zerolog.Logger, config agentconf.Config) *Client {
 	return &Client{
 		client: cl,
@@ -122,6 +122,7 @@ func (c *Client) report(ctx context.Context) {
 				var fn task
 				for _, p := range payload {
 					p := p
+					r := c.client.R()
 					if c.config.Mode == "json" {
 						if c.signer != nil {
 							hash, err := c.signer.CalcHash([]byte(p))
@@ -130,20 +131,18 @@ func (c *Client) report(ctx context.Context) {
 								return
 							}
 
-							c.client.SetHeader("HashSHA256", hex.EncodeToString(hash))
+							r.SetHeader("HashSHA256", hex.EncodeToString(hash))
 						}
 
 						fn = func() error {
-							_, err := c.client.R().
-								SetBody(p).
+							_, err := r.SetBody(p).
 								SetContext(ctx).
 								Post("")
 							return err
 						}
 					} else {
 						fn = func() error {
-							_, err := c.client.R().
-								SetPathParam("path", p).
+							_, err := r.SetPathParam("path", p).
 								SetContext(ctx).
 								Post("/{path}")
 							return err

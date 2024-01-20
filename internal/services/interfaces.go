@@ -13,6 +13,7 @@ type (
 
 	Signer interface {
 		CalcHash([]byte) ([]byte, error)
+		CheckHash(h1, h2 []byte) bool
 	}
 
 	Repository interface {

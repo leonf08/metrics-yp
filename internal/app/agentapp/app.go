@@ -18,11 +18,7 @@ func Run(cfg agentconf.Config) {
 	log := logger.NewLogger()
 	r := repo.NewStorage()
 	agent := services.NewAgentService(cfg.Mode, r)
-
-	var signer services.Signer
-	if cfg.Key != "" {
-		signer = services.NewHashSigner(cfg.Key)
-	}
+	signer := services.NewHashSigner(cfg.Key)
 
 	// Create client
 	cl := client.NewClient(resty.New(), agent, signer, log, cfg)
