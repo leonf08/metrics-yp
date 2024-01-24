@@ -3,9 +3,10 @@ package middleware
 import (
 	"bytes"
 	"encoding/hex"
-	"github.com/leonf08/metrics-yp.git/internal/services"
 	"io"
 	"net/http"
+
+	"github.com/leonf08/metrics-yp.git/internal/services"
 )
 
 func Auth(s *services.HashSigner) func(next http.Handler) http.Handler {

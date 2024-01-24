@@ -1,9 +1,10 @@
 package client
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/ratelimit"
-	"testing"
 )
 
 func Test_workerPool_run(t *testing.T) {

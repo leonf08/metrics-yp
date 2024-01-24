@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/leonf08/metrics-yp.git/internal/models"
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/mem"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/leonf08/metrics-yp.git/internal/models"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 )
 
 type AgentService struct {

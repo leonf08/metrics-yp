@@ -2,15 +2,16 @@ package agentapp
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/go-resty/resty/v2"
 	"github.com/leonf08/metrics-yp.git/internal/client"
 	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
 	"github.com/leonf08/metrics-yp.git/internal/logger"
 	"github.com/leonf08/metrics-yp.git/internal/services"
 	"github.com/leonf08/metrics-yp.git/internal/services/repo"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 func Run(cfg agentconf.Config) {

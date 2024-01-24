@@ -3,13 +3,14 @@ package httpserver
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/leonf08/metrics-yp.git/internal/models"
 	"github.com/leonf08/metrics-yp.git/internal/services"
 	"github.com/rs/zerolog"
-	"io"
-	"net/http"
-	"strconv"
 )
 
 type handler struct {
@@ -56,8 +57,8 @@ func (h handler) GetMetric(w http.ResponseWriter, r *http.Request) {
 	case "gauge":
 		v, ok := metric.Val.(float64)
 		if !ok {
-			logEntry.Error().Msg("invalid type assertion")
-			http.Error(w, "", http.StatusInternalServerError)
+			logEntry.Error().Msg("invalid value type")
+			http.Error(w, "invalid value type", http.StatusInternalServerError)
 			return
 		}
 
@@ -65,8 +66,8 @@ func (h handler) GetMetric(w http.ResponseWriter, r *http.Request) {
 	case "counter":
 		v, ok := metric.Val.(int64)
 		if !ok {
-			logEntry.Error().Msg("invalid type assertion")
-			http.Error(w, "", http.StatusInternalServerError)
+			logEntry.Error().Msg("invalid value type")
+			http.Error(w, "invalid value type", http.StatusInternalServerError)
 			return
 		}
 
@@ -236,8 +237,18 @@ func (h handler) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 	var v any
 	switch metric.MType {
 	case "gauge":
+		if metric.Value == nil {
+			logEntry.Error().Msg("invalid metric value")
+			http.Error(w, "invalid metric type", http.StatusBadRequest)
+			return
+		}
 		v = *(metric.Value)
 	case "counter":
+		if metric.Delta == nil {
+			logEntry.Error().Msg("invalid metric value")
+			http.Error(w, "invalid metric type", http.StatusBadRequest)
+			return
+		}
 		v = *(metric.Delta)
 	default:
 		logEntry.Error().Msg("invalid metric type")
@@ -285,8 +296,18 @@ func (h handler) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
 		metricsDB[i].Type = v.MType
 		switch v.MType {
 		case "gauge":
+			if v.Value == nil {
+				logEntry.Error().Msg("invalid metric value")
+				http.Error(w, "invalid metric type", http.StatusBadRequest)
+				return
+			}
 			metricsDB[i].Val = *v.Value
 		case "counter":
+			if v.Delta == nil {
+				logEntry.Error().Msg("invalid metric value")
+				http.Error(w, "invalid metric type", http.StatusBadRequest)
+				return
+			}
 			metricsDB[i].Val = *v.Delta
 		default:
 			logEntry.Error().Msg("invalid metric type")

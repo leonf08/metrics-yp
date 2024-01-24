@@ -1,8 +1,9 @@
 package client
 
 import (
-	"go.uber.org/ratelimit"
 	"sync"
+
+	"go.uber.org/ratelimit"
 )
 
 type (

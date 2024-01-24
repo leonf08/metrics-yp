@@ -1,15 +1,16 @@
 package serverapp
 
 import (
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
 	"github.com/leonf08/metrics-yp.git/internal/httpserver"
 	"github.com/leonf08/metrics-yp.git/internal/logger"
 	"github.com/leonf08/metrics-yp.git/internal/services"
 	"github.com/leonf08/metrics-yp.git/internal/services/repo"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 func Run(cfg serverconf.Config) {

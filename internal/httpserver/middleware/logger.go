@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/rs/zerolog"
 	"net/http"
 	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/rs/zerolog"
 )
 
 func Logging(l zerolog.Logger) func(next http.Handler) http.Handler {

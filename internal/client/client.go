@@ -3,13 +3,14 @@ package client
 import (
 	"context"
 	"encoding/hex"
+	"runtime"
+	"time"
+
 	"github.com/go-resty/resty/v2"
 	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
 	"github.com/leonf08/metrics-yp.git/internal/services"
 	"github.com/rs/zerolog"
 	"go.uber.org/ratelimit"
-	"runtime"
-	"time"
 )
 
 const (

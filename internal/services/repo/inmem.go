@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/leonf08/metrics-yp.git/internal/models"
 	"math/rand"
 	"runtime"
 	"sync"
+
+	"github.com/leonf08/metrics-yp.git/internal/models"
 )
 
 type MemStorage struct {

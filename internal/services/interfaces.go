@@ -2,9 +2,12 @@ package services
 
 import (
 	"context"
+
 	"github.com/leonf08/metrics-yp.git/internal/models"
 )
 
+//go:generate mockery --name Repository --output ./mocks --filename repo_mock.go
+//go:generate mockery --name FileStore --output ./mocks --filename filestore_mock.go
 type (
 	Agent interface {
 		GatherMetrics(context.Context) error
