@@ -6,11 +6,13 @@ import (
 	"time"
 )
 
+// Server is a wrapper around http.Server.
 type Server struct {
 	server *http.Server
 	err    chan error
 }
 
+// NewServer creates a new Server instance.
 func NewServer(h http.Handler, address string) *Server {
 	s := &Server{
 		server: &http.Server{
@@ -32,10 +34,12 @@ func (s *Server) start() {
 	}()
 }
 
+// Err returns a channel with errors from the server.
 func (s *Server) Err() <-chan error {
 	return s.err
 }
 
+// Shutdown gracefully shuts down the server.
 func (s *Server) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

@@ -14,6 +14,7 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 )
 
+// Run runs the agent.
 func Run(cfg agentconf.Config) {
 	// Init logger, repo, agent, signer
 	log := logger.NewLogger()

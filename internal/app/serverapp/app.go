@@ -13,6 +13,15 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 )
 
+// Run starts the application.
+// Services, repository, logger, router and server are initialized here.
+// Depending on the configuration, file storage is initialized as well.
+// The server is started in a separate goroutine.
+// The server is stopped by an interrupt signal or an error.
+//
+// If file storage is enabled, the metrics are restored from the file
+// when the server starts. The metrics are saved to the file every period
+// of time specified in the configuration.
 func Run(cfg serverconf.Config) {
 	log := logger.NewLogger()
 

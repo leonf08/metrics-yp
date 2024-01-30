@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// NewRouter creates a new router and adds middleware.
 func NewRouter(
 	s *services.HashSigner,
 	repo services.Repository,

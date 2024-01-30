@@ -19,6 +19,7 @@ const (
 	maxDelay = 5 * time.Second
 )
 
+// Client is a client for collecting and sending metrics to the server
 type Client struct {
 	client *resty.Client
 	agent  services.Agent
@@ -27,6 +28,7 @@ type Client struct {
 	config agentconf.Config
 }
 
+// NewClient creates a new client
 func NewClient(cl *resty.Client, a services.Agent, s *services.HashSigner,
 	l zerolog.Logger, config agentconf.Config) *Client {
 	return &Client{
@@ -38,6 +40,7 @@ func NewClient(cl *resty.Client, a services.Agent, s *services.HashSigner,
 	}
 }
 
+// Start starts the client
 func (c *Client) Start(ctx context.Context) {
 	// Gather metrics
 	go c.poll(ctx)

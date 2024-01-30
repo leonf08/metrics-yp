@@ -22,10 +22,12 @@ func newCompressWriter(w http.ResponseWriter) *compressWriter {
 	}
 }
 
+// Write writes the compressed data to the underlying gzip writer.
 func (cw *compressWriter) Write(b []byte) (int, error) {
 	return cw.gzw.Write(b)
 }
 
+// WriteHeader writes the header to the underlying writer.
 func (cw *compressWriter) WriteHeader(statusCode int) {
 	if statusCode < 300 {
 		cw.w.Header().Set("Content-Encoding", "gzip")
@@ -34,10 +36,12 @@ func (cw *compressWriter) WriteHeader(statusCode int) {
 	cw.w.WriteHeader(statusCode)
 }
 
+// Header returns the header from the underlying writer.
 func (cw *compressWriter) Header() http.Header {
 	return cw.w.Header()
 }
 
+// Close closes the underlying gzip writer.
 func (cw *compressWriter) Close() error {
 	return cw.gzw.Close()
 }
@@ -59,10 +63,12 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	}, nil
 }
 
+// Read reads the decompressed data from the underlying gzip reader.
 func (cr *compressReader) Read(p []byte) (n int, err error) {
 	return cr.gzr.Read(p)
 }
 
+// Close closes the underlying gzip reader.
 func (cr *compressReader) Close() error {
 	if err := cr.r.Close(); err != nil {
 		return err
@@ -70,6 +76,10 @@ func (cr *compressReader) Close() error {
 	return cr.gzr.Close()
 }
 
+// Compress is a middleware that compresses the response body
+// and decompresses the request body. It uses gzip compression.
+// It only compresses the response if the client supports it.
+// It only decompresses the request if the client sets the Content-Encoding header to gzip.
 func Compress(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ow := w

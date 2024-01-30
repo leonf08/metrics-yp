@@ -13,10 +13,12 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/models"
 )
 
+// PGStorage is database implementation of metrics storage.
 type PGStorage struct {
 	db *sqlx.DB
 }
 
+// NewDB creates a new database connection.
 func NewDB(sourceName string) (*PGStorage, error) {
 	if sourceName == "" {
 		return nil, nil
@@ -32,10 +34,12 @@ func NewDB(sourceName string) (*PGStorage, error) {
 	}, nil
 }
 
+// Ping checks connection to the database.
 func (st *PGStorage) Ping() error {
 	return st.db.Ping()
 }
 
+// Update updates metrics in the storage.
 func (st *PGStorage) Update(ctx context.Context, v any) error {
 	metrics, ok := v.([]models.MetricDB)
 	if !ok {
@@ -95,6 +99,7 @@ func (st *PGStorage) Update(ctx context.Context, v any) error {
 	return err
 }
 
+// ReadAll returns all metrics.
 func (st *PGStorage) ReadAll(ctx context.Context) (map[string]models.Metric, error) {
 	const queryStr = `SELECT * FROM metrics`
 
@@ -150,6 +155,7 @@ func (st *PGStorage) ReadAll(ctx context.Context) (map[string]models.Metric, err
 	return metrics, nil
 }
 
+// SetVal sets a value for a metric.
 func (st *PGStorage) SetVal(ctx context.Context, k string, m models.Metric) error {
 	const queryStr = `
 		INSERT INTO metrics (NAME, TYPE, VALUE)
@@ -179,6 +185,7 @@ func (st *PGStorage) SetVal(ctx context.Context, k string, m models.Metric) erro
 	return err
 }
 
+// GetVal returns a value for a metric.
 func (st *PGStorage) GetVal(ctx context.Context, k string) (models.Metric, error) {
 	queryStr := `SELECT TYPE, VALUE FROM metrics WHERE NAME = $1`
 
@@ -199,8 +206,4 @@ func (st *PGStorage) GetVal(ctx context.Context, k string) (models.Metric, error
 	})
 
 	return m, err
-}
-
-func (st *PGStorage) Close() {
-	st.db.Close()
 }

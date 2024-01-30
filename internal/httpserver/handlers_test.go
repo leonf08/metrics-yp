@@ -9,9 +9,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/leonf08/metrics-yp.git/internal/logger"
 	"github.com/leonf08/metrics-yp.git/internal/models"
 	"github.com/leonf08/metrics-yp.git/internal/services"
 	"github.com/leonf08/metrics-yp.git/internal/services/mocks"
+	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/mock"
 
@@ -27,7 +29,7 @@ type want struct {
 }
 
 func TestGetMetric(t *testing.T) {
-	repo := mocks.NewRepository(t)
+	rp := mocks.NewRepository(t)
 
 	tests := []struct {
 		name    string
@@ -94,7 +96,7 @@ func TestGetMetric(t *testing.T) {
 		},
 	}
 
-	repo.On("GetVal", mock.Anything, mock.Anything).
+	rp.On("GetVal", mock.Anything, mock.Anything).
 		Return(func(ctx context.Context, k string) (models.Metric, error) {
 			switch k {
 			case "Metric1":
@@ -129,12 +131,12 @@ func TestGetMetric(t *testing.T) {
 			route := chi.NewRouter()
 
 			h := &handler{
-				repo: repo,
+				repo: rp,
 				fs:   nil,
 				log:  zerolog.Logger{},
 			}
 
-			route.Get("/value/{type}/{name}", h.GetMetric)
+			route.Get("/value/{type}/{name}", h.getMetric)
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -158,7 +160,7 @@ func TestGetMetric(t *testing.T) {
 }
 
 func TestUpdateMetric(t *testing.T) {
-	repo := mocks.NewRepository(t)
+	rp := mocks.NewRepository(t)
 
 	tests := []struct {
 		name    string
@@ -223,7 +225,7 @@ func TestUpdateMetric(t *testing.T) {
 		},
 	}
 
-	repo.On("SetVal", mock.Anything, mock.Anything, mock.Anything).
+	rp.On("SetVal", mock.Anything, mock.Anything, mock.Anything).
 		Return(func(ctx context.Context, k string, metric models.Metric) error {
 			switch k {
 			case "Metric5":
@@ -240,12 +242,12 @@ func TestUpdateMetric(t *testing.T) {
 			route := chi.NewRouter()
 
 			h := &handler{
-				repo: repo,
+				repo: rp,
 				fs:   nil,
 				log:  zerolog.Logger{},
 			}
 
-			route.Post("/update/{type}/{name}/{val}", h.UpdateMetric)
+			route.Post("/update/{type}/{name}/{val}", h.updateMetric)
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -263,7 +265,7 @@ func TestUpdateMetric(t *testing.T) {
 }
 
 func TestDefaultHandler(t *testing.T) {
-	repo := mocks.NewRepository(t)
+	rp := mocks.NewRepository(t)
 
 	tests := []struct {
 		name    string
@@ -300,7 +302,7 @@ func TestDefaultHandler(t *testing.T) {
 		},
 	}
 
-	repo.On("ReadAll", mock.Anything).
+	rp.On("ReadAll", mock.Anything).
 		Return(func(ctx context.Context) (map[string]models.Metric, error) {
 			return map[string]models.Metric{
 				"Metric1": {},
@@ -312,13 +314,13 @@ func TestDefaultHandler(t *testing.T) {
 			route := chi.NewRouter()
 
 			h := &handler{
-				repo: repo,
+				repo: rp,
 				fs:   nil,
 				log:  zerolog.Logger{},
 			}
 
-			route.Get("/", h.Default)
-			route.Post("/", h.Default)
+			route.Get("/", h.defaultHandler)
+			route.Post("/", h.defaultHandler)
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -336,7 +338,7 @@ func TestDefaultHandler(t *testing.T) {
 }
 
 func TestGetMetricJSON(t *testing.T) {
-	repo := mocks.NewRepository(t)
+	rp := mocks.NewRepository(t)
 
 	tests := []struct {
 		name    string
@@ -435,7 +437,7 @@ func TestGetMetricJSON(t *testing.T) {
 		},
 	}
 
-	repo.On("GetVal", mock.Anything, mock.Anything).
+	rp.On("GetVal", mock.Anything, mock.Anything).
 		Return(func(ctx context.Context, k string) (models.Metric, error) {
 			switch k {
 			case "Metric1":
@@ -470,13 +472,13 @@ func TestGetMetricJSON(t *testing.T) {
 			route := chi.NewRouter()
 
 			h := &handler{
-				repo: repo,
+				repo: rp,
 				fs:   nil,
 				log:  zerolog.Logger{},
 			}
 
 			route.Route("/value", func(r chi.Router) {
-				r.Post("/", h.GetMetricJSON)
+				r.Post("/", h.getMetricJSON)
 			})
 			s := httptest.NewServer(route)
 			defer s.Close()
@@ -503,7 +505,7 @@ func TestGetMetricJSON(t *testing.T) {
 }
 
 func TestUpdateMetricJSON(t *testing.T) {
-	repo := mocks.NewRepository(t)
+	rp := mocks.NewRepository(t)
 	fs := mocks.NewFileStore(t)
 
 	tests := []struct {
@@ -614,14 +616,14 @@ func TestUpdateMetricJSON(t *testing.T) {
 		},
 	}
 
-	repo.On("SetVal", mock.Anything, mock.Anything, mock.Anything).
+	rp.On("SetVal", mock.Anything, mock.Anything, mock.Anything).
 		Return(func(ctx context.Context, k string, metric models.Metric) error {
 			switch k {
 			case "Metric3":
 				return fmt.Errorf("error")
 			}
 
-			repo.TestData()[k] = metric
+			rp.TestData()[k] = metric
 
 			return nil
 		})
@@ -641,13 +643,13 @@ func TestUpdateMetricJSON(t *testing.T) {
 			route := chi.NewRouter()
 
 			h := &handler{
-				repo: repo,
+				repo: rp,
 				fs:   fs,
 				log:  zerolog.Logger{},
 			}
 
 			route.Route("/update", func(r chi.Router) {
-				r.Post("/", h.UpdateMetricJSON)
+				r.Post("/", h.updateMetricJSON)
 			})
 			s := httptest.NewServer(route)
 			defer s.Close()
@@ -674,7 +676,7 @@ func TestUpdateMetricJSON(t *testing.T) {
 }
 
 func TestUpdateMetricsBatch(t *testing.T) {
-	repo := mocks.NewRepository(t)
+	rp := mocks.NewRepository(t)
 
 	tests := []struct {
 		name    string
@@ -756,7 +758,7 @@ func TestUpdateMetricsBatch(t *testing.T) {
 		},
 	}
 
-	repo.On("Update", mock.Anything, mock.Anything).
+	rp.On("Update", mock.Anything, mock.Anything).
 		Return(func(ctx context.Context, any any) error {
 			m := any.([]models.MetricDB)
 			if m[0].Name == "Metric3" {
@@ -771,12 +773,12 @@ func TestUpdateMetricsBatch(t *testing.T) {
 			route := chi.NewRouter()
 
 			h := &handler{
-				repo: repo,
+				repo: rp,
 				fs:   nil,
 				log:  zerolog.Logger{},
 			}
 
-			route.Post("/updates/", h.UpdateMetricsBatch)
+			route.Post("/updates/", h.updateMetricsBatch)
 			s := httptest.NewServer(route)
 			defer s.Close()
 
@@ -799,4 +801,28 @@ func TestUpdateMetricsBatch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Example() {
+	// Init logger
+	log := logger.NewLogger()
+
+	// Init repository
+	rp := repo.NewStorage()
+
+	// Create handler object
+	h := handler{
+		repo: rp,
+		fs:   nil,
+		log:  log,
+	}
+
+	http.HandleFunc("/", h.defaultHandler)
+	http.HandleFunc("/value/", h.getMetricJSON)
+	http.HandleFunc("/update/", h.updateMetricJSON)
+	http.HandleFunc("/updates/", h.updateMetricsBatch)
+	http.HandleFunc("/value/{type}/{name}", h.getMetric)
+	http.HandleFunc("/update/{type}/{name}/{val}", h.updateMetric)
+
+	log.Fatal().Err(http.ListenAndServe(":8080", nil)).Msg("")
 }

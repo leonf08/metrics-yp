@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
+// ErrRetriable is a retriable error.
 var ErrRetriable = errors.New("retriable error")
+
+// ErrRetryFailed is returned when all retries failed.
 var ErrRetryFailed = errors.New("all retries failed")
 
 const (
@@ -19,6 +22,7 @@ func isRetriable(err error) bool {
 	return errors.Is(err, ErrRetriable)
 }
 
+// Retry retries the function f until success, retry limit is reached or context is done.
 func Retry(ctx context.Context, f func() error) error {
 	var (
 		try   int

@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// Logging logs requests and responses.
 func Logging(l zerolog.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		log := l.With().Str("component", "middleware/logging").Logger()

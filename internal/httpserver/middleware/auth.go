@@ -9,6 +9,7 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/services"
 )
 
+// Auth is a middleware that checks the hash of the request body.
 func Auth(s *services.HashSigner) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

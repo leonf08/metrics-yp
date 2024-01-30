@@ -6,6 +6,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// NewLogger creates a new logger.
 func NewLogger() zerolog.Logger {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)

@@ -14,11 +14,13 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
+// AgentService is a service for gathering and reporting metrics.
 type AgentService struct {
 	mode string
 	repo Repository
 }
 
+// NewAgentService creates a new agent service.
 func NewAgentService(mode string, repo Repository) *AgentService {
 	return &AgentService{
 		mode: mode,
@@ -26,6 +28,7 @@ func NewAgentService(mode string, repo Repository) *AgentService {
 	}
 }
 
+// GatherMetrics gathers metrics. It reads memory stats and updates metrics in the storage.
 func (a *AgentService) GatherMetrics(ctx context.Context) error {
 	var memStats runtime.MemStats
 
@@ -56,6 +59,9 @@ func (a *AgentService) GatherMetrics(ctx context.Context) error {
 	return nil
 }
 
+// ReportMetrics processes metrics and prepares them for reporting.
+// It returns a slice of strings. Depending on the mode it can be JSON strings,
+// queries strings in URL format or batch of metrics converted in one JSON string.
 func (a *AgentService) ReportMetrics(ctx context.Context) ([]string, error) {
 	switch a.mode {
 	case "json":

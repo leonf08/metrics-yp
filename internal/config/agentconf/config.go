@@ -18,15 +18,29 @@ const (
 	defaultMode      = "json"
 )
 
+// Config is a configuration for the agent
 type Config struct {
-	Addr      string `env:"ADDRESS"`
-	ReportInt int    `env:"REPORT_INTERVAL"`
-	PollInt   int    `env:"POLL_INTERVAL"`
-	Key       string `env:"KEY"`
-	RateLim   int    `env:"RATE_LIMIT"`
-	Mode      string
+	// Addr is the address of the server to send metrics to
+	Addr string `env:"ADDRESS"`
+
+	// ReportInt is the interval for sending metrics to the server
+	ReportInt int `env:"REPORT_INTERVAL"`
+
+	// PollInt is the interval for collecting metrics
+	PollInt int `env:"POLL_INTERVAL"`
+
+	// Key used in hash calculation for authentication
+	Key string `env:"KEY"`
+
+	// RateLim limits the number of requests per second
+	RateLim int `env:"RATE_LIMIT"`
+
+	// Mode of operation
+	Mode string
 }
 
+// MustLoadConfig loads configuration from environment variables
+// and command-line flags. If there is an error, it panics.
 func MustLoadConfig() Config {
 	address := flag.String("a", defaultAddress, "Host address of the server")
 	key := flag.String("k", defaultKey, "Authentication key")

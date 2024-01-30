@@ -26,22 +26,25 @@ func newHandler(r *chi.Mux, repo services.Repository, fs services.FileStore, l z
 		log:  l,
 	}
 
-	r.Get("/", h.Default)
-	r.Post("/", h.Default)
-	r.Get("/ping", h.PingDB)
-	r.Post("/updates/", h.UpdateMetricsBatch)
+	r.Get("/", h.defaultHandler)
+	r.Post("/", h.defaultHandler)
+	r.Get("/ping", h.pingDB)
+	r.Post("/updates/", h.updateMetricsBatch)
 	r.Route("/value", func(r chi.Router) {
-		r.Get("/{type}/{name}", h.GetMetric)
-		r.Post("/", h.GetMetricJSON)
+		r.Get("/{type}/{name}", h.getMetric)
+		r.Post("/", h.getMetricJSON)
 	})
 	r.Route("/update", func(r chi.Router) {
-		r.Post("/", h.UpdateMetricJSON)
-		r.Post("/{type}/{name}/{val}", h.UpdateMetric)
+		r.Post("/", h.updateMetricJSON)
+		r.Post("/{type}/{name}/{val}", h.updateMetric)
 	})
 }
 
-func (h handler) GetMetric(w http.ResponseWriter, r *http.Request) {
-	logEntry := h.log.With().Str("component", "handler/GetMetric").Logger()
+// getMetric handles GET requests to /value/{type}/{name} endpoint to get metric value.
+// Type and name of metric are passed as URL parameters.
+// Response contains metric value in plain text format.
+func (h handler) getMetric(w http.ResponseWriter, r *http.Request) {
+	logEntry := h.log.With().Str("component", "handler/getMetric").Logger()
 
 	var vStr string
 	name := chi.URLParam(r, "name")
@@ -83,8 +86,10 @@ func (h handler) GetMetric(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, vStr)
 }
 
-func (h handler) UpdateMetric(w http.ResponseWriter, r *http.Request) {
-	logEntry := h.log.With().Str("component", "handler/UpdateMetric").Logger()
+// updateMetric handles POST requests to /update/{type}/{name}/{val} endpoint to update metric value.
+// Type, name and value of metric are passed as URL parameters.
+func (h handler) updateMetric(w http.ResponseWriter, r *http.Request) {
+	logEntry := h.log.With().Str("component", "handler/updateMetric").Logger()
 
 	name := chi.URLParam(r, "name")
 	val := chi.URLParam(r, "val")
@@ -126,8 +131,10 @@ func (h handler) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h handler) Default(w http.ResponseWriter, r *http.Request) {
-	logEntry := h.log.With().Str("component", "handler/Default").Logger()
+// defaultHandler handles GET requests to / endpoint to get all metrics.
+// Response contains list of all measured metrics in plain text format.
+func (h handler) defaultHandler(w http.ResponseWriter, r *http.Request) {
+	logEntry := h.log.With().Str("component", "handler/defaultHandler").Logger()
 
 	if r.Method == http.MethodPost {
 		logEntry.Error().Msg("method not allowed")
@@ -157,8 +164,10 @@ func (h handler) Default(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h handler) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
-	logEntry := h.log.With().Str("component", "handler/GetMetricJSON").Logger()
+// getMetricJSON handles POST requests to /value endpoint to get metric value.
+// Response contains metric object in JSON format
+func (h handler) getMetricJSON(w http.ResponseWriter, r *http.Request) {
+	logEntry := h.log.With().Str("component", "handler/getMetricJSON").Logger()
 
 	metric := models.MetricJSON{}
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
@@ -224,8 +233,11 @@ func (h handler) GetMetricJSON(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h handler) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
-	logEntry := h.log.With().Str("component", "handler/UpdateMetricJSON").Logger()
+// updateMetricJSON handles POST requests to /update endpoint to update metric value.
+// Updates metric object in JSON format received in request body.
+// Response contains updated metric object in JSON format
+func (h handler) updateMetricJSON(w http.ResponseWriter, r *http.Request) {
+	logEntry := h.log.With().Str("component", "handler/updateMetricJSON").Logger()
 
 	metric := models.MetricJSON{}
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
@@ -280,8 +292,11 @@ func (h handler) UpdateMetricJSON(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h handler) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
-	logEntry := h.log.With().Str("component", "handler/UpdateMetricsBatch").Logger()
+// updateMetricsBatch handles POST requests to /updates endpoint to update batch of metrics.
+// Updates metrics according to received JSON array of metric objects.
+// Response contains first updated metric object in JSON format
+func (h handler) updateMetricsBatch(w http.ResponseWriter, r *http.Request) {
+	logEntry := h.log.With().Str("component", "handler/updateMetricsBatch").Logger()
 
 	metrics := make([]models.MetricJSON, 0)
 	if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
@@ -331,8 +346,9 @@ func (h handler) UpdateMetricsBatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h handler) PingDB(w http.ResponseWriter, _ *http.Request) {
-	logEntry := h.log.With().Str("component", "handler/PingDB").Logger()
+// pingDB handles GET requests to /ping endpoint to check DB connection.
+func (h handler) pingDB(w http.ResponseWriter, _ *http.Request) {
+	logEntry := h.log.With().Str("component", "handler/pingDB").Logger()
 
 	p, ok := h.repo.(services.Pinger)
 	if !ok {

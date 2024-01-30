@@ -12,18 +12,21 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/models"
 )
 
+// MemStorage is an in-memory storage for metrics.
 type MemStorage struct {
 	Storage map[string]models.Metric
 	counter int64
 	sync.RWMutex
 }
 
+// NewStorage creates a new in-memory storage.
 func NewStorage() *MemStorage {
 	return &MemStorage{
 		Storage: make(map[string]models.Metric, 30),
 	}
 }
 
+// Update updates metrics in the storage.
 func (st *MemStorage) Update(_ context.Context, v any) error {
 	st.Lock()
 	defer st.Unlock()
@@ -72,6 +75,7 @@ func (st *MemStorage) Update(_ context.Context, v any) error {
 	return nil
 }
 
+// SetVal sets a value for a metric.
 func (st *MemStorage) SetVal(_ context.Context, k string, m models.Metric) error {
 	st.Lock()
 	defer st.Unlock()
@@ -93,6 +97,7 @@ func (st *MemStorage) SetVal(_ context.Context, k string, m models.Metric) error
 	return nil
 }
 
+// GetVal returns a value for a metric.
 func (st *MemStorage) GetVal(_ context.Context, k string) (models.Metric, error) {
 	st.RLock()
 	defer st.RUnlock()
@@ -105,12 +110,14 @@ func (st *MemStorage) GetVal(_ context.Context, k string) (models.Metric, error)
 	return v, nil
 }
 
+// ReadAll returns all metrics.
 func (st *MemStorage) ReadAll(_ context.Context) (map[string]models.Metric, error) {
 	st.RLock()
 	defer st.RUnlock()
 	return st.Storage, nil
 }
 
+// UnmarshalJSON implements json.Unmarshaler interface.
 func (st *MemStorage) UnmarshalJSON(data []byte) error {
 	s := make(map[string]map[string]models.Metric)
 

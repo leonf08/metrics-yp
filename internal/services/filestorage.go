@@ -10,6 +10,7 @@ import (
 )
 
 type (
+	// FileStorage is a file storage for metrics.
 	FileStorage struct {
 		s *saver
 		l *loader
@@ -26,6 +27,7 @@ type (
 	}
 )
 
+// NewFileStorage creates a new file storage.
 func NewFileStorage(path string) (*FileStorage, error) {
 	s, err := newSaver(path)
 	if err != nil {
@@ -80,6 +82,7 @@ func newLoader(path string) (*loader, error) {
 	}, nil
 }
 
+// Save saves metrics to the file in JSON format.
 func (fs *FileStorage) Save(r Repository) error {
 	m, ok := r.(*repo.MemStorage)
 	if !ok {
@@ -101,6 +104,7 @@ func (fs *FileStorage) Save(r Repository) error {
 	return fs.s.encoder.Encode(&m.Storage)
 }
 
+// Load loads metrics from the file.
 func (fs *FileStorage) Load(r Repository) error {
 	m, ok := r.(*repo.MemStorage)
 	if !ok {
@@ -121,6 +125,7 @@ func (fs *FileStorage) Load(r Repository) error {
 	return nil
 }
 
+// Close closes the file.
 func (fs *FileStorage) Close() {
 	fs.s.file.Close()
 	fs.l.file.Close()
