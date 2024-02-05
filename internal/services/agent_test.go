@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+type key struct{}
+
 func TestAgentService_GatherMetrics(t *testing.T) {
 	r := mocks.NewRepository(t)
 
@@ -26,7 +28,7 @@ func TestAgentService_GatherMetrics(t *testing.T) {
 
 	r.On("Update", mock.Anything, mock.Anything).
 		Return(func(ctx context.Context, m any) error {
-			if ctx.Value("update") == "error" {
+			if ctx.Value(key{}) == "error" {
 				return errors.New("error")
 			}
 
@@ -35,7 +37,7 @@ func TestAgentService_GatherMetrics(t *testing.T) {
 
 	r.On("SetVal", mock.Anything, mock.Anything, mock.Anything).
 		Return(func(ctx context.Context, k string, m models.Metric) error {
-			if ctx.Value("setval") == "error" {
+			if ctx.Value(key{}) == "error" {
 				return errors.New("error")
 			}
 
@@ -55,7 +57,7 @@ func TestAgentService_GatherMetrics(t *testing.T) {
 				r:    r,
 			},
 			args: args{
-				ctx: context.WithValue(context.Background(), "update", "no error"),
+				ctx: context.WithValue(context.Background(), key{}, "no error"),
 			},
 			wantErr: false,
 		},
@@ -66,7 +68,7 @@ func TestAgentService_GatherMetrics(t *testing.T) {
 				r:    r,
 			},
 			args: args{
-				ctx: context.WithValue(context.Background(), "update", "error"),
+				ctx: context.WithValue(context.Background(), key{}, "error"),
 			},
 			wantErr: true,
 		},
@@ -77,7 +79,7 @@ func TestAgentService_GatherMetrics(t *testing.T) {
 				r:    r,
 			},
 			args: args{
-				ctx: context.WithValue(context.Background(), "setval", "error"),
+				ctx: context.WithValue(context.Background(), key{}, "error"),
 			},
 			wantErr: true,
 		},
@@ -140,7 +142,7 @@ func TestAgentService_batchMetrics(t *testing.T) {
 		Return(func(ctx context.Context) (map[string]models.Metric, error) {
 			m := make(map[string]models.Metric, 1)
 
-			switch ctx.Value("readall") {
+			switch ctx.Value(key{}) {
 			case "error":
 				return nil, errors.New("error")
 			case "gaugeError":
@@ -181,7 +183,7 @@ func TestAgentService_batchMetrics(t *testing.T) {
 		{
 			name: "test 1, batch metrics, no error",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "no error"),
+				ctx: context.WithValue(context.Background(), key{}, "no error"),
 			},
 			wantLen: 1,
 			wantErr: false,
@@ -189,7 +191,7 @@ func TestAgentService_batchMetrics(t *testing.T) {
 		{
 			name: "test 2, batch metrics, error",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "error"),
+				ctx: context.WithValue(context.Background(), key{}, "error"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -197,7 +199,7 @@ func TestAgentService_batchMetrics(t *testing.T) {
 		{
 			name: "test 3, batch metrics, invalid gauge value",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "gaugeError"),
+				ctx: context.WithValue(context.Background(), key{}, "gaugeError"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -205,7 +207,7 @@ func TestAgentService_batchMetrics(t *testing.T) {
 		{
 			name: "test 4, batch metrics, invalid counter value",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "counterError"),
+				ctx: context.WithValue(context.Background(), key{}, "counterError"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -213,7 +215,7 @@ func TestAgentService_batchMetrics(t *testing.T) {
 		{
 			name: "test 5, batch metrics, unknown metric type",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "unknownType"),
+				ctx: context.WithValue(context.Background(), key{}, "unknownType"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -243,7 +245,7 @@ func TestAgentService_jsonMetrics(t *testing.T) {
 		Return(func(ctx context.Context) (map[string]models.Metric, error) {
 			m := make(map[string]models.Metric, 1)
 
-			switch ctx.Value("readall") {
+			switch ctx.Value(key{}) {
 			case "error":
 				return nil, errors.New("error")
 			case "gaugeError":
@@ -284,7 +286,7 @@ func TestAgentService_jsonMetrics(t *testing.T) {
 		{
 			name: "test 1, json metrics, no error",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "no error"),
+				ctx: context.WithValue(context.Background(), key{}, "no error"),
 			},
 			wantLen: 2,
 			wantErr: false,
@@ -292,7 +294,7 @@ func TestAgentService_jsonMetrics(t *testing.T) {
 		{
 			name: "test 2, json metrics, error",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "error"),
+				ctx: context.WithValue(context.Background(), key{}, "error"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -300,7 +302,7 @@ func TestAgentService_jsonMetrics(t *testing.T) {
 		{
 			name: "test 3, json metrics, invalid gauge value",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "gaugeError"),
+				ctx: context.WithValue(context.Background(), key{}, "gaugeError"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -308,7 +310,7 @@ func TestAgentService_jsonMetrics(t *testing.T) {
 		{
 			name: "test 4, json metrics, invalid counter value",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "counterError"),
+				ctx: context.WithValue(context.Background(), key{}, "counterError"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -316,7 +318,7 @@ func TestAgentService_jsonMetrics(t *testing.T) {
 		{
 			name: "test 5, json metrics, unknown metric type",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "unknownType"),
+				ctx: context.WithValue(context.Background(), key{}, "unknownType"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -346,7 +348,7 @@ func TestAgentService_queryMetrics(t *testing.T) {
 		Return(func(ctx context.Context) (map[string]models.Metric, error) {
 			m := make(map[string]models.Metric, 1)
 
-			switch ctx.Value("readall") {
+			switch ctx.Value(key{}) {
 			case "error":
 				return nil, errors.New("error")
 			case "gaugeError":
@@ -387,7 +389,7 @@ func TestAgentService_queryMetrics(t *testing.T) {
 		{
 			name: "test 1, json metrics, no error",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "no error"),
+				ctx: context.WithValue(context.Background(), key{}, "no error"),
 			},
 			wantLen: 2,
 			wantErr: false,
@@ -395,7 +397,7 @@ func TestAgentService_queryMetrics(t *testing.T) {
 		{
 			name: "test 2, json metrics, error",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "error"),
+				ctx: context.WithValue(context.Background(), key{}, "error"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -403,7 +405,7 @@ func TestAgentService_queryMetrics(t *testing.T) {
 		{
 			name: "test 3, json metrics, invalid gauge value",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "gaugeError"),
+				ctx: context.WithValue(context.Background(), key{}, "gaugeError"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -411,7 +413,7 @@ func TestAgentService_queryMetrics(t *testing.T) {
 		{
 			name: "test 4, json metrics, invalid counter value",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "counterError"),
+				ctx: context.WithValue(context.Background(), key{}, "counterError"),
 			},
 			wantLen: 0,
 			wantErr: true,
@@ -419,7 +421,7 @@ func TestAgentService_queryMetrics(t *testing.T) {
 		{
 			name: "test 5, json metrics, unknown metric type",
 			args: args{
-				ctx: context.WithValue(context.Background(), "readall", "unknownType"),
+				ctx: context.WithValue(context.Background(), key{}, "unknownType"),
 			},
 			wantLen: 0,
 			wantErr: true,
