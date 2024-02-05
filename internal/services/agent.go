@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/leonf08/metrics-yp.git/internal/models"
+	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 )
@@ -17,11 +18,11 @@ import (
 // AgentService is a service for gathering and reporting metrics.
 type AgentService struct {
 	mode string
-	repo Repository
+	repo repo.Repository
 }
 
 // NewAgentService creates a new agent service.
-func NewAgentService(mode string, repo Repository) *AgentService {
+func NewAgentService(mode string, repo repo.Repository) *AgentService {
 	return &AgentService{
 		mode: mode,
 		repo: repo,
@@ -159,6 +160,8 @@ func (a *AgentService) queryMetrics(ctx context.Context) ([]string, error) {
 			}
 
 			valStr = strconv.FormatInt(val, 10)
+		default:
+			return nil, errors.New("invalid metric type")
 		}
 
 		b = append(b, strings.Join([]string{k, v.Type, valStr}, "/"))

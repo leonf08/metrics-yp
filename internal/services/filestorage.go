@@ -47,7 +47,7 @@ func NewFileStorage(path string) (*FileStorage, error) {
 
 func newSaver(path string) (*saver, error) {
 	if path == "" {
-		return &saver{}, nil
+		return nil, errors.New("path is empty")
 	}
 
 	dir := filepath.Dir(path)
@@ -68,7 +68,7 @@ func newSaver(path string) (*saver, error) {
 
 func newLoader(path string) (*loader, error) {
 	if path == "" {
-		return &loader{}, nil
+		return nil, errors.New("path is empty")
 	}
 
 	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o666)
@@ -83,7 +83,7 @@ func newLoader(path string) (*loader, error) {
 }
 
 // Save saves metrics to the file in JSON format.
-func (fs *FileStorage) Save(r Repository) error {
+func (fs *FileStorage) Save(r repo.Repository) error {
 	m, ok := r.(*repo.MemStorage)
 	if !ok {
 		return errors.New("invalid type assertion for in-memory storage")
@@ -105,7 +105,7 @@ func (fs *FileStorage) Save(r Repository) error {
 }
 
 // Load loads metrics from the file.
-func (fs *FileStorage) Load(r Repository) error {
+func (fs *FileStorage) Load(r repo.Repository) error {
 	m, ok := r.(*repo.MemStorage)
 	if !ok {
 		return errors.New("invalid type assertion for in-memory storage")

@@ -10,16 +10,17 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/leonf08/metrics-yp.git/internal/models"
 	"github.com/leonf08/metrics-yp.git/internal/services"
+	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 	"github.com/rs/zerolog"
 )
 
 type handler struct {
-	repo services.Repository
+	repo repo.Repository
 	fs   services.FileStore
 	log  zerolog.Logger
 }
 
-func newHandler(r *chi.Mux, repo services.Repository, fs services.FileStore, l zerolog.Logger) {
+func newHandler(r *chi.Mux, repo repo.Repository, fs services.FileStore, l zerolog.Logger) {
 	h := handler{
 		repo: repo,
 		fs:   fs,

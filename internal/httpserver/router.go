@@ -5,13 +5,14 @@ import (
 	chiMw "github.com/go-chi/chi/v5/middleware"
 	"github.com/leonf08/metrics-yp.git/internal/httpserver/middleware"
 	"github.com/leonf08/metrics-yp.git/internal/services"
+	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 	"github.com/rs/zerolog"
 )
 
 // NewRouter creates a new router and adds middleware.
 func NewRouter(
 	s *services.HashSigner,
-	repo services.Repository,
+	repo repo.Repository,
 	fs services.FileStore,
 	l zerolog.Logger,
 ) *chi.Mux {

@@ -11,7 +11,6 @@ import (
 
 	"github.com/leonf08/metrics-yp.git/internal/logger"
 	"github.com/leonf08/metrics-yp.git/internal/models"
-	"github.com/leonf08/metrics-yp.git/internal/services"
 	"github.com/leonf08/metrics-yp.git/internal/services/mocks"
 	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 	"github.com/rs/zerolog"
@@ -629,7 +628,7 @@ func TestUpdateMetricJSON(t *testing.T) {
 		})
 
 	fs.On("Save", mock.Anything).
-		Return(func(r services.Repository) error {
+		Return(func(r repo.Repository) error {
 			m := r.(*mocks.Repository)
 			if _, ok := m.TestData()["Metric5"]; ok {
 				return fmt.Errorf("error")

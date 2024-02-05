@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	services "github.com/leonf08/metrics-yp.git/internal/services"
+	repo "github.com/leonf08/metrics-yp.git/internal/services/repo"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -12,12 +12,17 @@ type FileStore struct {
 	mock.Mock
 }
 
+// Close provides a mock function with given fields:
+func (_m *FileStore) Close() {
+	_m.Called()
+}
+
 // Load provides a mock function with given fields: _a0
-func (_m *FileStore) Load(_a0 services.Repository) error {
+func (_m *FileStore) Load(_a0 repo.Repository) error {
 	ret := _m.Called(_a0)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(services.Repository) error); ok {
+	if rf, ok := ret.Get(0).(func(repo.Repository) error); ok {
 		r0 = rf(_a0)
 	} else {
 		r0 = ret.Error(0)
@@ -27,11 +32,11 @@ func (_m *FileStore) Load(_a0 services.Repository) error {
 }
 
 // Save provides a mock function with given fields: _a0
-func (_m *FileStore) Save(_a0 services.Repository) error {
+func (_m *FileStore) Save(_a0 repo.Repository) error {
 	ret := _m.Called(_a0)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(services.Repository) error); ok {
+	if rf, ok := ret.Get(0).(func(repo.Repository) error); ok {
 		r0 = rf(_a0)
 	} else {
 		r0 = ret.Error(0)

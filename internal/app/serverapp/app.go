@@ -28,7 +28,7 @@ func Run(cfg serverconf.Config) {
 	s := services.NewHashSigner(cfg.Key)
 
 	var (
-		r  services.Repository
+		r  repo.Repository
 		fs services.FileStore
 	)
 	if cfg.IsInMemStorage() {
@@ -89,6 +89,9 @@ func Run(cfg serverconf.Config) {
 	}
 
 	log.Info().Msg("app - Run - Stopping server")
+	if cfg.IsFileStorage() {
+		fs.Close()
+	}
 	err := server.Shutdown()
 	if err != nil {
 		log.Error().Err(err).Msg("app - Run - server.Shutdown")
