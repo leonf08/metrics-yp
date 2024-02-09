@@ -1,124 +1,99 @@
 package serverapp
 
 import (
-	"flag"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/leonf08/metrics-yp.git/internal/auth"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"go.uber.org/zap"
-
-	"github.com/caarlos0/env/v6"
-	"github.com/go-chi/chi/v5"
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
-	"github.com/leonf08/metrics-yp.git/internal/server/httpserver"
-	"github.com/leonf08/metrics-yp.git/internal/server/logger"
-	"github.com/leonf08/metrics-yp.git/internal/storage"
+	"github.com/leonf08/metrics-yp.git/internal/httpserver"
+	"github.com/leonf08/metrics-yp.git/internal/logger"
+	"github.com/leonf08/metrics-yp.git/internal/services"
+	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 )
 
-func StartApp() error {
-	server, err := initServer()
-	if err != nil {
-		return err
-	}
+// Run starts the application.
+// Services, repository, logger, router and server are initialized here.
+// Depending on the configuration, file storage is initialized as well.
+// The server is started in a separate goroutine.
+// The server is stopped by an interrupt signal or an error.
+//
+// If file storage is enabled, the metrics are restored from the file
+// when the server starts. The metrics are saved to the file every period
+// of time specified in the configuration.
+func Run(cfg serverconf.Config) {
+	log := logger.NewLogger()
 
-	router := chi.NewRouter()
-	router.Use(server.LoggingMiddleware, server.AuthMiddleware, server.CompressMiddleware, middleware.Recoverer)
-	router.Route("/", func(r chi.Router) {
-		r.Get("/", server.Default)
-		r.Post("/", server.Default)
-		r.Get("/ping", server.PingDB)
-		r.Post("/updates/", server.UpdateMetricsBatch)
-		r.Route("/value", func(r chi.Router) {
-			r.Get("/{type}/{name}", server.GetMetric)
-			r.Post("/", server.GetMetricJSON)
-		})
-		r.Route("/update", func(r chi.Router) {
-			r.Post("/", server.UpdateMetricJSON)
-			r.Post("/{type}/{name}/{val}", server.UpdateMetric)
-		})
-	})
-	server.RegisterHandler(router)
+	s := services.NewHashSigner(cfg.Key)
 
-	return server.Run()
-}
-
-func initServer() (*httpserver.Server, error) {
-	l, err := initLogger()
-	if err != nil {
-		return nil, err
-	}
-	log := logger.NewLogger(l)
-
-	config, err := getConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	repo, err := initRepo(config)
-	if err != nil {
-		return nil, err
-	}
-
-	signer := auth.NewHashSigner(config.Key)
-
-	s := httpserver.NewServer(repo, config, log, signer)
-
-	return s, nil
-}
-
-func initLogger() (logger.Logger, error) {
-	lvl, err := zap.ParseAtomicLevel("info")
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := zap.NewProductionConfig()
-	cfg.Level = lvl
-	zl, err := cfg.Build()
-	if err != nil {
-		return nil, err
-	}
-
-	return zl.Sugar(), nil
-}
-
-func getConfig() (*serverconf.Config, error) {
-	address := flag.String("a", ":8080", "Host address of the server")
-	storeInt := flag.Int("i", 300, "Store interval for the metrics")
-	filePath := flag.String("f", "tmp/metrics-db.json", "Path to file for metrics storage")
-	dbAddr := flag.String("d", "", "Database address")
-	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")
-	key := flag.String("k", "", "Authentication key")
-	flag.Parse()
-
-	cfg := serverconf.NewConfig(*storeInt, *address, *filePath, *dbAddr, *key, *restore)
-	if err := env.Parse(cfg); err != nil {
-		return nil, err
-	}
-
-	return cfg, nil
-}
-
-func initRepo(cfg *serverconf.Config) (httpserver.Repository, error) {
-	var repo httpserver.Repository
+	var (
+		r  repo.Repository
+		fs services.FileStore
+	)
 	if cfg.IsInMemStorage() {
-		st := storage.NewStorage()
+		r = repo.NewStorage()
 
 		if cfg.IsFileStorage() {
-			err := st.WithFileStorage(cfg.FileStoragePath)
+			fileStorage, err := services.NewFileStorage(cfg.FileStoragePath)
 			if err != nil {
-				return nil, err
+				log.Error().Err(err).Msg("app - Run - NewFileStorage")
+				return
+			}
+
+			if cfg.Restore {
+				log.Info().Msg("app - Run - Restore metrics from file")
+				err = fileStorage.Load(r)
+				if err != nil {
+					log.Error().Err(err).Msg("app - Run - fileStorage.Load")
+					return
+				}
+			}
+
+			if cfg.StoreInt > 0 {
+				go func() {
+					for {
+						<-time.After(time.Duration(cfg.StoreInt) * time.Second)
+						log.Info().Msg("app - Run - Save metrics to file")
+						if err = fileStorage.Save(r); err != nil {
+							log.Error().Err(err).Msg("app - Run - fileStorage.Save")
+						}
+					}
+				}()
+			} else {
+				fs = fileStorage
 			}
 		}
-		repo = st
 	} else {
-		db, err := storage.NewDB(cfg.DatabaseAddr)
+		db, err := repo.NewDB(cfg.DatabaseAddr)
 		if err != nil {
-			return nil, err
+			log.Error().Err(err).Msg("app - Run - NewDB")
+			return
 		}
 
-		repo = db
+		r = db
 	}
 
-	return repo, nil
+	router := httpserver.NewRouter(s, r, fs, log)
+	server := httpserver.NewServer(router, cfg.Addr)
+	log.Info().Str("address", cfg.Addr).Msg("app - Run - Starting server")
+
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case err := <-server.Err():
+		log.Error().Err(err).Msg("app - Run - server.Err")
+	case sig := <-interrupt:
+		log.Info().Str("signal", sig.String()).Msg("app - Run - signal")
+	}
+
+	log.Info().Msg("app - Run - Stopping server")
+	if cfg.IsFileStorage() {
+		fs.Close()
+	}
+	err := server.Shutdown()
+	if err != nil {
+		log.Error().Err(err).Msg("app - Run - server.Shutdown")
+	}
 }

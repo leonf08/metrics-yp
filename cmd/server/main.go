@@ -1,13 +1,11 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/leonf08/metrics-yp.git/internal/app/serverapp"
+	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
 )
 
 func main() {
-	if err := serverapp.StartApp(); err != nil {
-		fmt.Println(err)
-	}
+	config := serverconf.MustLoadConfig()
+	serverapp.Run(config)
 }

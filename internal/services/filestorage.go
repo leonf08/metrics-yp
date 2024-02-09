@@ -1,13 +1,17 @@
-package storage
+package services
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+
+	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 )
 
 type (
-	fileStorage struct {
+	// FileStorage is a file storage for metrics.
+	FileStorage struct {
 		s *saver
 		l *loader
 	}
@@ -23,7 +27,8 @@ type (
 	}
 )
 
-func newFileStorage(path string) (*fileStorage, error) {
+// NewFileStorage creates a new file storage.
+func NewFileStorage(path string) (*FileStorage, error) {
 	s, err := newSaver(path)
 	if err != nil {
 		return nil, err
@@ -34,7 +39,7 @@ func newFileStorage(path string) (*fileStorage, error) {
 		return nil, err
 	}
 
-	return &fileStorage{
+	return &FileStorage{
 		s: s,
 		l: l,
 	}, nil
@@ -42,7 +47,7 @@ func newFileStorage(path string) (*fileStorage, error) {
 
 func newSaver(path string) (*saver, error) {
 	if path == "" {
-		return &saver{}, nil
+		return nil, errors.New("path is empty")
 	}
 
 	dir := filepath.Dir(path)
@@ -63,7 +68,7 @@ func newSaver(path string) (*saver, error) {
 
 func newLoader(path string) (*loader, error) {
 	if path == "" {
-		return &loader{}, nil
+		return nil, errors.New("path is empty")
 	}
 
 	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0o666)
@@ -77,7 +82,13 @@ func newLoader(path string) (*loader, error) {
 	}, nil
 }
 
-func (fs *fileStorage) save(m *MemStorage) error {
+// Save saves metrics to the file in JSON format.
+func (fs *FileStorage) Save(r repo.Repository) error {
+	m, ok := r.(*repo.MemStorage)
+	if !ok {
+		return errors.New("invalid type assertion for in-memory storage")
+	}
+
 	err := fs.s.file.Truncate(0)
 	if err != nil {
 		return err
@@ -90,29 +101,32 @@ func (fs *fileStorage) save(m *MemStorage) error {
 
 	fs.s.encoder.SetIndent("", "    ")
 
-	return fs.s.encoder.Encode(m)
+	return fs.s.encoder.Encode(&m.Storage)
 }
 
-func (fs *fileStorage) load() (*MemStorage, error) {
-	m := &MemStorage{
-		Storage: make(map[string]any, 30),
+// Load loads metrics from the file.
+func (fs *FileStorage) Load(r repo.Repository) error {
+	m, ok := r.(*repo.MemStorage)
+	if !ok {
+		return errors.New("invalid type assertion for in-memory storage")
 	}
 
 	info, err := fs.l.file.Stat()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if info.Size() > 0 {
-		if err := fs.l.decoder.Decode(m); err != nil {
-			return nil, err
+		if err := fs.l.decoder.Decode(&m.Storage); err != nil {
+			return err
 		}
 	}
 
-	return m, nil
+	return nil
 }
 
-func (fs *fileStorage) close() {
+// Close closes the file.
+func (fs *FileStorage) Close() {
 	fs.s.file.Close()
 	fs.l.file.Close()
 }

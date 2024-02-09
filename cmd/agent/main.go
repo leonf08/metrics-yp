@@ -1,13 +1,11 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/leonf08/metrics-yp.git/internal/app/agentapp"
+	"github.com/leonf08/metrics-yp.git/internal/config/agentconf"
 )
 
 func main() {
-	if err := agentapp.StartApp(); err != nil {
-		fmt.Println(err)
-	}
+	config := agentconf.MustLoadConfig()
+	agentapp.Run(config)
 }

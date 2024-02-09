@@ -12,9 +12,7 @@
 *.out
 
 # Binaries
-cmd/agent/main
 cmd/agent/agent
-cmd/server/main
 cmd/server/server
 
 # Dependency directories (remove the comment below to include it)
@@ -28,8 +26,8 @@ cmd/server/tmp/metrics-db.json
 tmp/metrics-db.json
 bin/agent/agent
 .gitignore
-.gitignore
 bin/server/server
 Makefile
 internal/app/agentapp/agent.go
 statictest
+/cover.html
