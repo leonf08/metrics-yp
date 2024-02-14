@@ -1,3 +1,4 @@
+//nolint:all
 package httpserver
 
 import (
@@ -617,8 +618,7 @@ func TestUpdateMetricJSON(t *testing.T) {
 
 	rp.On("SetVal", mock.Anything, mock.Anything, mock.Anything).
 		Return(func(ctx context.Context, k string, metric models.Metric) error {
-			switch k {
-			case "Metric3":
+			if k == "Metric3" {
 				return fmt.Errorf("error")
 			}
 

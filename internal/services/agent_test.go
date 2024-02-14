@@ -103,10 +103,17 @@ func TestAgentService_ReportMetrics(t *testing.T) {
 		repo repo.Repository
 	}
 
+	type want struct {
+		metricsLen int
+		err        bool
+	}
+
+	r := mocks.NewRepository(t)
+
 	tests := []struct {
-		name    string
-		fields  fields
-		wantErr bool
+		name   string
+		fields fields
+		want   want
 	}{
 		{
 			name: "test 1, report metrics, error",
@@ -114,20 +121,74 @@ func TestAgentService_ReportMetrics(t *testing.T) {
 				mode: "invalid",
 				repo: nil,
 			},
-			wantErr: true,
+			want: want{
+				metricsLen: 0,
+				err:        true,
+			},
+		},
+		{
+			name: "test 2, report metrics, json",
+			fields: fields{
+				mode: "json",
+				repo: r,
+			},
+			want: want{
+				metricsLen: 2,
+				err:        false,
+			},
+		},
+		{
+			name: "test 3, report metrics, query",
+			fields: fields{
+				mode: "query",
+				repo: r,
+			},
+			want: want{
+				metricsLen: 2,
+				err:        false,
+			},
+		},
+		{
+			name: "test 4, report metrics, batch",
+			fields: fields{
+				mode: "batch",
+				repo: r,
+			},
+			want: want{
+				metricsLen: 1,
+				err:        false,
+			},
 		},
 	}
+
+	r.On("ReadAll", mock.Anything).
+		Return(func(ctx context.Context) (map[string]models.Metric, error) {
+			m := make(map[string]models.Metric)
+			m["test"] = models.Metric{
+				Type: "gauge",
+				Val:  3.2,
+			}
+			m["test2"] = models.Metric{
+				Type: "counter",
+				Val:  int64(3),
+			}
+
+			return m, nil
+		})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a := &AgentService{
 				mode: tt.fields.mode,
 				repo: tt.fields.repo,
 			}
-			_, err := a.ReportMetrics(context.Background())
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ReportMetrics() error = %v, wantErr %v", err, tt.wantErr)
+			m, err := a.ReportMetrics(context.Background())
+			if (err != nil) != tt.want.err {
+				t.Errorf("ReportMetrics() error = %v, wantErr %v", err, tt.want.err)
 				return
 			}
+
+			assert.Equal(t, tt.want.metricsLen, len(m))
 		})
 	}
 }

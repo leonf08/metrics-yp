@@ -139,14 +139,14 @@ func (c *Client) report(ctx context.Context) {
 						}
 
 						fn = func() error {
-							_, err := r.SetBody(p).
+							_, err = r.SetBody(p).
 								SetContext(ctx).
 								Post("")
 							return err
 						}
 					} else {
 						fn = func() error {
-							_, err := r.SetPathParam("path", p).
+							_, err = r.SetPathParam("path", p).
 								SetContext(ctx).
 								Post("/{path}")
 							return err

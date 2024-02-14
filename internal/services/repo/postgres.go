@@ -63,6 +63,7 @@ func (st *PGStorage) Update(ctx context.Context, v any) error {
 			return err
 		}
 
+		//lint:ignore errcheck
 		defer tx.Rollback()
 
 		stmt, err := tx.PreparexContext(ctx, queryStr)
@@ -133,7 +134,7 @@ func (st *PGStorage) ReadAll(ctx context.Context) (map[string]models.Metric, err
 	metrics := make(map[string]models.Metric, 30)
 	for rows.Next() {
 		var m models.MetricDB
-		if err := rows.StructScan(&m); err != nil {
+		if err = rows.StructScan(&m); err != nil {
 			return nil, err
 		}
 
