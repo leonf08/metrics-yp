@@ -73,12 +73,10 @@ func TestCompress(t *testing.T) {
 	ts := httptest.NewServer(r)
 	defer ts.Close()
 
-	req := resty.New().R()
-
 	for _, tt := range tests {
 		b, _ := hex.DecodeString("1f8b08005299ca6502ff2b492d2e01000c7e7fd804000000")
 		t.Run(tt.name, func(t *testing.T) {
-			req = req.SetHeaders(map[string]string{
+			req := resty.New().R().SetHeaders(map[string]string{
 				"Accept-Encoding":  tt.acceptEncoding,
 				"Content-Encoding": tt.contentEncoding,
 				"Accept":           "application/json",
