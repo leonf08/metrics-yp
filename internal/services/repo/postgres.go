@@ -49,7 +49,7 @@ func (st *PGStorage) Update(ctx context.Context, v any) error {
 	const queryStr = `
 		INSERT INTO metrics (NAME, TYPE, VALUE)
 		VALUES ($1, $2, $3)
-		ON CONFLICT (NAME) 
+		ON CONFLICT (NAME)
 		DO UPDATE SET
 		VALUE = CASE
 			WHEN $2 = 'counter' THEN metrics.VALUE + $3
@@ -63,7 +63,6 @@ func (st *PGStorage) Update(ctx context.Context, v any) error {
 			return err
 		}
 
-		//lint:ignore errcheck
 		defer tx.Rollback()
 
 		stmt, err := tx.PreparexContext(ctx, queryStr)
@@ -74,7 +73,7 @@ func (st *PGStorage) Update(ctx context.Context, v any) error {
 		defer stmt.Close()
 
 		for _, m := range metrics {
-			_, err := stmt.ExecContext(ctx, m.Name, m.Type, m.Val)
+			_, err = stmt.ExecContext(ctx, m.Name, m.Type, m.Val)
 			if err != nil {
 				return err
 			}
@@ -161,7 +160,7 @@ func (st *PGStorage) SetVal(ctx context.Context, k string, m models.Metric) erro
 	const queryStr = `
 		INSERT INTO metrics (NAME, TYPE, VALUE)
 		VALUES ($1, $2, $3)
-		ON CONFLICT (NAME) 
+		ON CONFLICT (NAME)
 		DO UPDATE SET
 		VALUE = CASE
 			WHEN $2 = 'counter' THEN metrics.VALUE + $3
