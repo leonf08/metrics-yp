@@ -51,14 +51,14 @@ func TestPGStorage_UpdateErr(t *testing.T) {
 	}
 	defer db.Close()
 
-	sqlxDb := sqlx.NewDb(db, "sqlmock")
+	sqlxDB := sqlx.NewDb(db, "sqlmock")
 
 	mock.ExpectBegin()
 	prep := mock.ExpectPrepare("INSERT INTO metrics")
 	prep.ExpectExec().WithArgs("name", "counter", 1).WillReturnError(assert.AnError)
 	mock.ExpectRollback()
 
-	st := &PGStorage{db: sqlxDb}
+	st := &PGStorage{db: sqlxDB}
 
 	m := []models.MetricDB{
 		{
