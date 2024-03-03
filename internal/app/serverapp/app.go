@@ -89,7 +89,7 @@ func Run(cfg serverconf.Config) {
 	}
 
 	log.Info().Msg("app - Run - Stopping server")
-	if cfg.IsFileStorage() {
+	if cfg.IsFileStorage() && fs != nil {
 		fs.Close()
 	}
 	err := server.Shutdown()

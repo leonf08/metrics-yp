@@ -126,12 +126,11 @@ func (st *MemStorage) UnmarshalJSON(data []byte) error {
 	}
 
 	for k, v := range s["metrics"] {
+		val, ok := v.Val.(float64)
+		if !ok {
+			return errors.New("failed type assertion")
+		}
 		if v.Type == "counter" {
-			val, ok := v.Val.(float64)
-			if !ok {
-				return errors.New("failed type assertion")
-			}
-
 			st.Storage[k] = models.Metric{Type: v.Type, Val: int64(val)}
 		} else {
 			st.Storage[k] = v

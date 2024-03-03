@@ -23,20 +23,20 @@ type Config struct {
 	// Addr is the address of the server to send metrics to
 	Addr string `env:"ADDRESS"`
 
+	// Mode of operation
+	Mode string
+
+	// Key used in hash calculation for authentication
+	Key string `env:"KEY"`
+
 	// ReportInt is the interval for sending metrics to the server
 	ReportInt int `env:"REPORT_INTERVAL"`
 
 	// PollInt is the interval for collecting metrics
 	PollInt int `env:"POLL_INTERVAL"`
 
-	// Key used in hash calculation for authentication
-	Key string `env:"KEY"`
-
 	// RateLim limits the number of requests per second
 	RateLim int `env:"RATE_LIMIT"`
-
-	// Mode of operation
-	Mode string
 }
 
 // MustLoadConfig loads configuration from environment variables
