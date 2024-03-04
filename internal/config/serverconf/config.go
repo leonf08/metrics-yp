@@ -23,8 +23,11 @@ type Config struct {
 	// DatabaseAddr is the address of the database
 	DatabaseAddr string `env:"DATABASE_DSN"`
 
-	// Key used in hash calculation for authentication
-	Key string `env:"KEY"`
+	// SignKey used in hash calculation for authentication
+	SignKey string `env:"KEY"`
+
+	// CryptoKey is a path to a file with private key for decryption
+	CryptoKey string `env:"CRYPTO_KEY"`
 }
 
 // MustLoadConfig loads configuration from environment variables
@@ -36,6 +39,7 @@ func MustLoadConfig() Config {
 	dbAddr := flag.String("d", "", "Database address")
 	restore := flag.Bool("r", true, "Load previously saved metrics at the server start")
 	key := flag.String("k", "", "Authentication key")
+	cryptoKey := flag.String("crypto-key", "", "Path to a file with private key")
 	flag.Parse()
 
 	cfg := Config{
@@ -44,7 +48,8 @@ func MustLoadConfig() Config {
 		FileStoragePath: *filePath,
 		Restore:         *restore,
 		DatabaseAddr:    *dbAddr,
-		Key:             *key,
+		SignKey:         *key,
+		CryptoKey:       *cryptoKey,
 	}
 
 	if err := env.Parse(&cfg); err != nil {

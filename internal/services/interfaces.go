@@ -21,6 +21,12 @@ type (
 		Close()
 	}
 
+	// Crypto is an interface for encryption and decryption.
+	Crypto interface {
+		Decrypt(src []byte) ([]byte, error)
+		Encrypt(src []byte) ([]byte, error)
+	}
+
 	// Pinger is an interface for checking connection to the database.
 	Pinger interface {
 		Ping() error

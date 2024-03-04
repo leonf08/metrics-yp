@@ -16,6 +16,7 @@ const (
 	defaultKey       = ""
 	defaultRateLimit = 10
 	defaultMode      = "json"
+	defaultCryptoKey = ""
 )
 
 // Config is a configuration for the agent
@@ -26,8 +27,11 @@ type Config struct {
 	// Mode of operation
 	Mode string
 
-	// Key used in hash calculation for authentication
-	Key string `env:"KEY"`
+	// SignKey used in hash calculation for authentication
+	SignKey string `env:"KEY"`
+
+	// CryptoKey is a path to a file with public key for encryption
+	CryptoKey string `env:"CRYPTO_KEY"`
 
 	// ReportInt is the interval for sending metrics to the server
 	ReportInt int `env:"REPORT_INTERVAL"`
@@ -45,6 +49,7 @@ func MustLoadConfig() Config {
 	address := flag.String("a", defaultAddress, "Host address of the server")
 	key := flag.String("k", defaultKey, "Authentication key")
 	rate := flag.Int("l", defaultRateLimit, "Rate limit for http requests")
+	cryptoKey := flag.String("crypto-key", defaultCryptoKey, "Path to a file with public key")
 
 	reportInt := defaultReportInt
 	flag.Func("r", "Report interval to server", func(s string) (err error) {
@@ -93,7 +98,8 @@ func MustLoadConfig() Config {
 		Addr:      *address,
 		ReportInt: reportInt,
 		PollInt:   pollInt,
-		Key:       *key,
+		SignKey:   *key,
+		CryptoKey: *cryptoKey,
 		RateLim:   *rate,
 		Mode:      mode,
 	}

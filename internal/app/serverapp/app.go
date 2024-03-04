@@ -25,11 +25,12 @@ import (
 func Run(cfg serverconf.Config) {
 	log := logger.NewLogger()
 
-	s := services.NewHashSigner(cfg.Key)
+	s := services.NewHashSigner(cfg.SignKey)
 
 	var (
 		r  repo.Repository
 		fs services.FileStore
+		cr services.Crypto
 	)
 	if cfg.IsInMemStorage() {
 		r = repo.NewStorage()
@@ -74,7 +75,11 @@ func Run(cfg serverconf.Config) {
 		r = db
 	}
 
-	router := httpserver.NewRouter(s, r, fs, log)
+	if cfg.CryptoKey != "" {
+		cr = services.NewCryptoService(cfg.CryptoKey)
+	}
+
+	router := httpserver.NewRouter(s, cr, r, fs, log)
 	server := httpserver.NewServer(router, cfg.Addr)
 	log.Info().Str("address", cfg.Addr).Msg("app - Run - Starting server")
 

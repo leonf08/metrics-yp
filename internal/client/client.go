@@ -24,17 +24,19 @@ type Client struct {
 	client *resty.Client
 	agent  services.Agent
 	signer *services.HashSigner
+	crypto services.Crypto
 	log    zerolog.Logger
 	config agentconf.Config
 }
 
 // NewClient creates a new client
-func NewClient(cl *resty.Client, a services.Agent, s *services.HashSigner,
+func NewClient(cl *resty.Client, a services.Agent, s *services.HashSigner, cr services.Crypto,
 	l zerolog.Logger, config agentconf.Config) *Client {
 	return &Client{
 		client: cl,
 		agent:  a,
 		signer: s,
+		crypto: cr,
 		log:    l,
 		config: config,
 	}
@@ -128,8 +130,16 @@ func (c *Client) report(ctx context.Context) {
 					p := p
 					r := c.client.R()
 					if c.config.Mode == "json" {
+						b := []byte(p)
+						if c.crypto != nil {
+							b, err = c.crypto.Encrypt(b)
+							if err != nil {
+								c.log.Error().Err(err).Msg("client - Start - Encrypt")
+								return
+							}
+						}
 						if c.signer != nil {
-							hash, err := c.signer.CalcHash([]byte(p))
+							hash, err := c.signer.CalcHash(b)
 							if err != nil {
 								c.log.Error().Err(err).Msg("client - Start - CalcHash")
 								return
@@ -139,7 +149,7 @@ func (c *Client) report(ctx context.Context) {
 						}
 
 						fn = func() error {
-							_, err = r.SetBody(p).
+							_, err = r.SetBody(b).
 								SetContext(ctx).
 								Post("")
 							return err

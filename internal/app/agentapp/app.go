@@ -20,10 +20,16 @@ func Run(cfg agentconf.Config) {
 	log := logger.NewLogger()
 	r := repo.NewStorage()
 	agent := services.NewAgentService(cfg.Mode, r)
-	signer := services.NewHashSigner(cfg.Key)
+	signer := services.NewHashSigner(cfg.SignKey)
+
+	// Init crypto
+	var crypto services.Crypto
+	if cfg.CryptoKey != "" {
+		crypto = services.NewCryptoService(cfg.CryptoKey)
+	}
 
 	// Create client
-	cl := client.NewClient(resty.New(), agent, signer, log, cfg)
+	cl := client.NewClient(resty.New(), agent, signer, crypto, log, cfg)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
