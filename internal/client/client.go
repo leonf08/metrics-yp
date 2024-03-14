@@ -43,7 +43,7 @@ func NewClient(cl *resty.Client, a services.Agent, s *services.HashSigner, cr se
 }
 
 // Start starts the client
-func (c *Client) Start(ctx context.Context) {
+func (c *Client) Start(ctx context.Context) error {
 	// Gather metrics
 	go c.poll(ctx)
 
@@ -51,6 +51,7 @@ func (c *Client) Start(ctx context.Context) {
 	go c.report(ctx)
 
 	<-ctx.Done()
+	return ctx.Err()
 }
 
 func (c *Client) poll(ctx context.Context) {

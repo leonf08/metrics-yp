@@ -32,6 +32,7 @@ func Run(cfg serverconf.Config) {
 		fs services.FileStore
 		cr services.Crypto
 	)
+
 	if cfg.IsInMemStorage() {
 		r = repo.NewStorage()
 
@@ -41,6 +42,7 @@ func Run(cfg serverconf.Config) {
 				log.Error().Err(err).Msg("app - Run - NewFileStorage")
 				return
 			}
+			defer fileStorage.Close()
 
 			if cfg.Restore {
 				log.Info().Msg("app - Run - Restore metrics from file")
@@ -71,6 +73,7 @@ func Run(cfg serverconf.Config) {
 			log.Error().Err(err).Msg("app - Run - NewDB")
 			return
 		}
+		defer db.Close()
 
 		r = db
 	}
@@ -84,7 +87,7 @@ func Run(cfg serverconf.Config) {
 	log.Info().Str("address", cfg.Addr).Msg("app - Run - Starting server")
 
 	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 
 	select {
 	case err := <-server.Err():
@@ -93,10 +96,7 @@ func Run(cfg serverconf.Config) {
 		log.Info().Str("signal", sig.String()).Msg("app - Run - signal")
 	}
 
-	log.Info().Msg("app - Run - Stopping server")
-	if cfg.IsFileStorage() && fs != nil {
-		fs.Close()
-	}
+	log.Info().Msg("app - Run - Shutdown the server")
 	err := server.Shutdown()
 	if err != nil {
 		log.Error().Err(err).Msg("app - Run - server.Shutdown")
