@@ -55,6 +55,7 @@ func TestCrypto(t *testing.T) {
 
 			resp, err := ts.Client().Post(ts.URL, "application/json", bytes.NewReader([]byte("test")))
 			require.NoError(t, err)
+			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 		})
