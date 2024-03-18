@@ -34,3 +34,4 @@ statictest
 cmd/cryptokeygen/main.go
 /cmd/cryptokeygen/public-key.pem
 /cmd/cryptokeygen/private-key.pem
+/internal/services/test.json

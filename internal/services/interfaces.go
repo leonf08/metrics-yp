@@ -7,6 +7,8 @@ import (
 )
 
 //go:generate mockery --name FileStore --output ./mocks --filename filestore_mock.go
+//go:generate mockery --name Crypto --output ./mocks --filename crypto_mock.go
+//go:generate mockery --name Pinger --output ./mocks --filename pinger_mock.go
 type (
 	// Agent is an interface for gathering and reporting metrics.
 	Agent interface {

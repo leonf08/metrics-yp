@@ -802,6 +802,81 @@ func TestUpdateMetricsBatch(t *testing.T) {
 	}
 }
 
+func TestPing(t *testing.T) {
+	type pingerRepo struct {
+		*mocks.Pinger
+		mocks.Repository
+	}
+
+	pr := &pingerRepo{Pinger: mocks.NewPinger(t)}
+
+	tests := []struct {
+		name string
+		repo any
+		want want
+	}{
+		{
+			name: "test 1, ping",
+			repo: pr,
+			want: want{
+				code:        http.StatusOK,
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "test 2, ping error",
+			repo: pr,
+			want: want{
+				code:        http.StatusInternalServerError,
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "test 3, ping not implemented",
+			repo: mocks.NewRepository(t),
+			want: want{
+				code:        http.StatusNotImplemented,
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			route := chi.NewRouter()
+
+			h := &handler{
+				repo: tt.repo.(repo.Repository),
+				fs:   nil,
+				log:  zerolog.Logger{},
+			}
+
+			route.Get("/ping", h.pingDB)
+			s := httptest.NewServer(route)
+			defer s.Close()
+
+			pr.Pinger.On("Ping").
+				Return(func() error {
+					if tt.name == "test 2, ping error" {
+						return assert.AnError
+					}
+
+					return nil
+				})
+
+			r, err := http.NewRequest(http.MethodGet, s.URL+"/ping", nil)
+			require.NoError(t, err)
+			resp, err := s.Client().Do(r)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.want.code, resp.StatusCode)
+			assert.Equal(t, tt.want.contentType, resp.Header.Get("Content-Type"))
+		})
+	}
+}
+
 func Example() {
 	// Init logger
 	log := logger.NewLogger()

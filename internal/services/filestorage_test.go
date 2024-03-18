@@ -110,3 +110,21 @@ func TestNewFileStorage(t *testing.T) {
 		})
 	}
 }
+
+func TestFileStorage_Close(t *testing.T) {
+	tests := []struct {
+		name string
+	}{
+		{
+			name: "test 1, close",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs, err := NewFileStorage("test.json")
+			require.NoError(t, err, "NewFileStorage()")
+
+			fs.Close()
+		})
+	}
+}

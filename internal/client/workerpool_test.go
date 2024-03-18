@@ -80,3 +80,37 @@ func Test_workerPool_run(t *testing.T) {
 		})
 	}
 }
+
+func Test_newWorkerPool(t *testing.T) {
+	type args struct {
+		ts []task
+		ws int
+		l  ratelimit.Limiter
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "Test_newWorkerPool",
+			args: args{
+				ts: []task{
+					func() error { return nil },
+					func() error { return nil },
+					func() error { return nil },
+				},
+				ws: 3,
+				l:  ratelimit.New(1),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := newWorkerPool(tt.args.ts, tt.args.ws, tt.args.l)
+			assert.NotNil(t, got.tasks)
+			assert.Equal(t, tt.args.ws, got.workers)
+			assert.NotNil(t, got.jobs)
+			assert.NotNil(t, got.result)
+		})
+	}
+}
