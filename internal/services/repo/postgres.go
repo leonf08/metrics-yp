@@ -207,3 +207,8 @@ func (st *PGStorage) GetVal(ctx context.Context, k string) (models.Metric, error
 
 	return m, err
 }
+
+// Close closes the database connection.
+func (st *PGStorage) Close() error {
+	return st.db.Close()
+}

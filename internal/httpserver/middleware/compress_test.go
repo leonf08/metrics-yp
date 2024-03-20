@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/hex"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -66,8 +67,9 @@ func TestCompress(t *testing.T) {
 	r.Use(Compress)
 
 	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
+		s, _ := io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("test"))
+		_, _ = w.Write(s)
 	})
 
 	ts := httptest.NewServer(r)

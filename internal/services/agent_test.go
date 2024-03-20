@@ -501,3 +501,33 @@ func TestAgentService_queryMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestNewAgentService(t *testing.T) {
+	type args struct {
+		mode string
+		r    repo.Repository
+	}
+
+	tests := []struct {
+		name string
+		args args
+		want *AgentService
+	}{
+		{
+			name: "test 1, new agent service",
+			args: args{
+				mode: "json",
+				r:    nil,
+			},
+			want: &AgentService{
+				mode: "json",
+				repo: nil,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, NewAgentService(tt.args.mode, tt.args.r), "NewAgentService(%v, %v)", tt.args.mode, tt.args.r)
+		})
+	}
+}
