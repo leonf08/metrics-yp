@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-resty/resty/v2"
 	"github.com/leonf08/metrics-yp.git/internal/services"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,7 +56,7 @@ func TestAuth(t *testing.T) {
 
 			require.NoError(t, err)
 
-			require.Equal(t, tt.expectedStatus, resp.StatusCode())
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode())
 		})
 	}
 }

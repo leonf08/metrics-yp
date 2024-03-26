@@ -15,10 +15,12 @@ func NewRouter(
 	cr services.Crypto,
 	repo repo.Repository,
 	fs services.FileStore,
+	ip services.IPChecker,
 	l zerolog.Logger,
 ) *chi.Mux {
 	r := chi.NewRouter()
-	r.Use(middleware.Logging(l), middleware.Auth(s), middleware.Crypto(cr), middleware.Compress, chiMw.Recoverer)
+	r.Use(middleware.Logging(l), middleware.IpCheck(ip), middleware.Auth(s),
+		middleware.Crypto(cr), middleware.Compress, chiMw.Recoverer)
 
 	newHandler(r, repo, fs, l)
 

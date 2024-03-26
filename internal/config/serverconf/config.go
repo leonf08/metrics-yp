@@ -23,6 +23,7 @@ const (
 	flagSignKeyName       = "auth_key"
 	flagCryptoKeyName     = "crypto_key"
 	flagConfigName        = "config"
+	flagTrustedSubnet     = "trusted_subnet"
 )
 
 // Config is a struct for server configuration
@@ -47,6 +48,9 @@ type Config struct {
 
 	// CryptoKey is a path to a file with private key for decryption
 	CryptoKey string `env:"CRYPTO_KEY"`
+
+	// TrustedSubnet is CIDR notation of trusted subnet
+	TrustedSubnet string `env:"TRUSTED_SUBNET"`
 }
 
 // MustLoadConfig loads configuration from environment variables
@@ -60,6 +64,7 @@ func MustLoadConfig() Config {
 	pflag.StringP(flagSignKeyName, "k", "", "Authentication key")
 	pflag.StringP(flagCryptoKeyName, "y", "", "Path to the file with private key")
 	pflag.StringP(flagConfigName, "c", "", "Path to the configuration file")
+	pflag.StringP(flagTrustedSubnet, "t", "", "CIDR notation of trusted subnet")
 
 	pflag.Parse()
 	if err := viper.BindPFlags(pflag.CommandLine); err != nil {
@@ -85,6 +90,7 @@ func MustLoadConfig() Config {
 	storeInt := viper.GetUint(flagStoreIntervalName)
 	signKey := viper.GetString(flagSignKeyName)
 	cryptoKey := viper.GetString(flagCryptoKeyName)
+	trustedSubnet := viper.GetString(flagTrustedSubnet)
 
 	cfg := Config{
 		Addr:            address,
@@ -94,6 +100,7 @@ func MustLoadConfig() Config {
 		Restore:         restore,
 		SignKey:         signKey,
 		CryptoKey:       cryptoKey,
+		TrustedSubnet:   trustedSubnet,
 	}
 
 	if err := env.Parse(&cfg); err != nil {

@@ -33,4 +33,9 @@ type (
 	Pinger interface {
 		Ping() error
 	}
+
+	// IPChecker is an interface for checking IP address.
+	IPChecker interface {
+		IsTrusted(ipAddr string) (bool, error)
+	}
 )

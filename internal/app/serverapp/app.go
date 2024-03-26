@@ -23,15 +23,24 @@ import (
 // when the server starts. The metrics are saved to the file every period
 // of time specified in the configuration.
 func Run(cfg serverconf.Config) {
-	log := logger.NewLogger()
-
-	s := services.NewHashSigner(cfg.SignKey)
-
 	var (
 		r  repo.Repository
 		fs services.FileStore
 		cr services.Crypto
 	)
+
+	log := logger.NewLogger()
+	s := services.NewHashSigner(cfg.SignKey)
+
+	if cfg.CryptoKey != "" {
+		cr = services.NewCryptoService(cfg.CryptoKey)
+	}
+
+	ip, err := services.NewIPChecker(cfg.TrustedSubnet)
+	if err != nil {
+		log.Error().Err(err).Msg("app - Run - NewIPChecker")
+		return
+	}
 
 	if cfg.IsInMemStorage() {
 		r = repo.NewStorage()
@@ -78,11 +87,7 @@ func Run(cfg serverconf.Config) {
 		r = db
 	}
 
-	if cfg.CryptoKey != "" {
-		cr = services.NewCryptoService(cfg.CryptoKey)
-	}
-
-	router := httpserver.NewRouter(s, cr, r, fs, log)
+	router := httpserver.NewRouter(s, cr, r, fs, ip, log)
 	server := httpserver.NewServer(router, cfg.Addr)
 	log.Info().Str("address", cfg.Addr).Msg("app - Run - Starting server")
 
@@ -90,14 +95,14 @@ func Run(cfg serverconf.Config) {
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 
 	select {
-	case err := <-server.Err():
+	case err = <-server.Err():
 		log.Error().Err(err).Msg("app - Run - server.Err")
 	case sig := <-interrupt:
 		log.Info().Str("signal", sig.String()).Msg("app - Run - signal")
 	}
 
 	log.Info().Msg("app - Run - Shutdown the server")
-	err := server.Shutdown()
+	err = server.Shutdown()
 	if err != nil {
 		log.Error().Err(err).Msg("app - Run - server.Shutdown")
 	}
