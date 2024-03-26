@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/hex"
+	"net"
 	"runtime"
 	"time"
 
@@ -98,7 +99,14 @@ func (c *Client) report(ctx context.Context) {
 		})
 	}
 
+	ip, err := getIP()
+	if err != nil {
+		c.log.Error().Err(err).Msg("getIP")
+		return
+	}
+
 	c.client.
+		SetHeader("X-Real-IP", ip.String()).
 		SetRetryCount(retries).
 		SetRetryWaitTime(delay).
 		SetRetryMaxWaitTime(maxDelay)
@@ -120,7 +128,9 @@ func (c *Client) report(ctx context.Context) {
 			}
 
 			if c.config.Mode == "batch" {
-				_, err = c.client.R().SetBody(payload[0]).SetContext(ctx).Post("")
+				_, err = c.client.R().
+					SetBody(payload[0]).
+					SetContext(ctx).Post("")
 				if err != nil {
 					c.log.Error().Err(err).Msg("client - Start - Send batch request")
 				}
@@ -177,4 +187,16 @@ func (c *Client) report(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func getIP() (net.IP, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP, nil
 }

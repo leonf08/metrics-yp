@@ -1,6 +1,7 @@
 package serverapp
 
 import (
+	"net/netip"
 	"os"
 	"os/signal"
 	"syscall"
@@ -23,15 +24,25 @@ import (
 // when the server starts. The metrics are saved to the file every period
 // of time specified in the configuration.
 func Run(cfg serverconf.Config) {
-	log := logger.NewLogger()
-
-	s := services.NewHashSigner(cfg.SignKey)
-
 	var (
 		r  repo.Repository
 		fs services.FileStore
 		cr services.Crypto
+		ip services.IPChecker
 	)
+
+	log := logger.NewLogger()
+	s := services.NewHashSigner(cfg.SignKey)
+
+	if cfg.CryptoKey != "" {
+		cr = services.NewCryptoService(cfg.CryptoKey)
+	}
+
+	if cfg.TrustedSubnet != "" {
+		if prefix, err := netip.ParsePrefix(cfg.TrustedSubnet); err == nil {
+			ip = services.NewIPChecker(prefix)
+		}
+	}
 
 	if cfg.IsInMemStorage() {
 		r = repo.NewStorage()
@@ -78,11 +89,7 @@ func Run(cfg serverconf.Config) {
 		r = db
 	}
 
-	if cfg.CryptoKey != "" {
-		cr = services.NewCryptoService(cfg.CryptoKey)
-	}
-
-	router := httpserver.NewRouter(s, cr, r, fs, log)
+	router := httpserver.NewRouter(s, cr, r, fs, ip, log)
 	server := httpserver.NewServer(router, cfg.Addr)
 	log.Info().Str("address", cfg.Addr).Msg("app - Run - Starting server")
 
