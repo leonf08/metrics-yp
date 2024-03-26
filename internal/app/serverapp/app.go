@@ -1,6 +1,7 @@
 package serverapp
 
 import (
+	"net/netip"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,6 +28,7 @@ func Run(cfg serverconf.Config) {
 		r  repo.Repository
 		fs services.FileStore
 		cr services.Crypto
+		ip services.IPChecker
 	)
 
 	log := logger.NewLogger()
@@ -36,10 +38,10 @@ func Run(cfg serverconf.Config) {
 		cr = services.NewCryptoService(cfg.CryptoKey)
 	}
 
-	ip, err := services.NewIPChecker(cfg.TrustedSubnet)
-	if err != nil {
-		log.Error().Err(err).Msg("app - Run - NewIPChecker")
-		return
+	if cfg.TrustedSubnet != "" {
+		if prefix, err := netip.ParsePrefix(cfg.TrustedSubnet); err == nil {
+			ip = services.NewIPChecker(prefix)
+		}
 	}
 
 	if cfg.IsInMemStorage() {
@@ -95,14 +97,14 @@ func Run(cfg serverconf.Config) {
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 
 	select {
-	case err = <-server.Err():
+	case err := <-server.Err():
 		log.Error().Err(err).Msg("app - Run - server.Err")
 	case sig := <-interrupt:
 		log.Info().Str("signal", sig.String()).Msg("app - Run - signal")
 	}
 
 	log.Info().Msg("app - Run - Shutdown the server")
-	err = server.Shutdown()
+	err := server.Shutdown()
 	if err != nil {
 		log.Error().Err(err).Msg("app - Run - server.Shutdown")
 	}

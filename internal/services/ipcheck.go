@@ -12,15 +12,10 @@ type IPCheckService struct {
 }
 
 // NewIPChecker creates instance of the IP checker.
-func NewIPChecker(trustedSubnet string) (*IPCheckService, error) {
-	prefix, err := netip.ParsePrefix(trustedSubnet)
-	if err != nil {
-		return nil, err
-	}
-
+func NewIPChecker(prefix netip.Prefix) *IPCheckService {
 	return &IPCheckService{
 		prefix: prefix,
-	}, nil
+	}
 }
 
 // IsTrusted checks if the IP is in trusted subnet.

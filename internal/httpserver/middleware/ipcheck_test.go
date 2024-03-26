@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -44,7 +45,10 @@ func TestIpCheck(t *testing.T) {
 		},
 	}
 
-	ipCheck, err := services.NewIPChecker("192.168.1.0/24")
+	prefix, err := netip.ParsePrefix("192.168.1.0/24")
+	require.NoError(t, err)
+
+	ipCheck := services.NewIPChecker(prefix)
 	require.NoError(t, err)
 
 	r := chi.NewRouter()

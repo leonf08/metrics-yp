@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+	"net/netip"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,10 +60,12 @@ func TestIPCheckService_IsTrusted(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			i, err := NewIPChecker(tt.fields.trustedSubnet)
-			require.NoError(t, err, "NewIPChecker(%v)", tt.fields.trustedSubnet)
+			prefix, err := netip.ParsePrefix(tt.fields.trustedSubnet)
+			require.NoError(t, err, "ParsePrefix")
 
-			got, err := i.IsTrusted(tt.args.ip)
+			ip := NewIPChecker(prefix)
+
+			got, err := ip.IsTrusted(tt.args.ip)
 			if !tt.wantErr(t, err, fmt.Sprintf("IsTrusted(%v)", tt.args.ip)) {
 				return
 			}
@@ -75,29 +79,25 @@ func TestNewIPChecker(t *testing.T) {
 		trustedSubnet string
 	}
 	tests := []struct {
-		name    string
-		args    args
-		wantErr assert.ErrorAssertionFunc
+		name string
+		args args
 	}{
 		{
 			name: "NewIPChecker",
 			args: args{
 				trustedSubnet: "192.168.0.1/24",
 			},
-			wantErr: assert.NoError,
-		},
-		{
-			name: "NewIPChecker, error",
-			args: args{
-				trustedSubnet: "192.168.0.1",
-			},
-			wantErr: assert.Error,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewIPChecker(tt.args.trustedSubnet)
-			tt.wantErr(t, err, fmt.Sprintf("NewIPChecker(%v)", tt.args.trustedSubnet))
+			prefix, err := netip.ParsePrefix(tt.args.trustedSubnet)
+			require.NoError(t, err, "ParsePrefix")
+
+			ip := NewIPChecker(prefix)
+			if !reflect.DeepEqual(ip, &IPCheckService{prefix: prefix}) {
+				t.Errorf("NewIPChecker() = %v, want %v", ip, &IPCheckService{prefix: prefix})
+			}
 		})
 	}
 }
