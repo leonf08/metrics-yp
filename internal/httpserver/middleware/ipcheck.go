@@ -6,7 +6,7 @@ import (
 	"github.com/leonf08/metrics-yp.git/internal/services"
 )
 
-func IpCheck(ip services.IPChecker) func(next http.Handler) http.Handler {
+func IPCheck(ip services.IPChecker) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if ip != nil {

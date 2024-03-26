@@ -48,7 +48,7 @@ func TestIpCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	r := chi.NewRouter()
-	r.Use(IpCheck(ipCheck))
+	r.Use(IPCheck(ipCheck))
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})

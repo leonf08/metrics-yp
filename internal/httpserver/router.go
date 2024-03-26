@@ -19,7 +19,7 @@ func NewRouter(
 	l zerolog.Logger,
 ) *chi.Mux {
 	r := chi.NewRouter()
-	r.Use(middleware.Logging(l), middleware.IpCheck(ip), middleware.Auth(s),
+	r.Use(middleware.Logging(l), middleware.IPCheck(ip), middleware.Auth(s),
 		middleware.Crypto(cr), middleware.Compress, chiMw.Recoverer)
 
 	newHandler(r, repo, fs, l)
