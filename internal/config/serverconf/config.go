@@ -12,6 +12,7 @@ const (
 	defaultAddress       = ":8080"
 	defaultStoreInterval = 300
 	defaultRestore       = true
+	defaultGRPCAddr      = ":8081"
 )
 
 const (
@@ -24,6 +25,7 @@ const (
 	flagCryptoKeyName     = "crypto_key"
 	flagConfigName        = "config"
 	flagTrustedSubnet     = "trusted_subnet"
+	flagGRPCAddrName      = "grpc_address"
 )
 
 // Config is a struct for server configuration
@@ -51,6 +53,9 @@ type Config struct {
 
 	// TrustedSubnet is CIDR notation of trusted subnet
 	TrustedSubnet string `env:"TRUSTED_SUBNET"`
+
+	// GRPCAddr is the address of the gRPC server
+	GRPCAddr string `env:"GRPC_ADDRESS"`
 }
 
 // MustLoadConfig loads configuration from environment variables
@@ -65,6 +70,7 @@ func MustLoadConfig() Config {
 	pflag.StringP(flagCryptoKeyName, "y", "", "Path to the file with private key")
 	pflag.StringP(flagConfigName, "c", "", "Path to the configuration file")
 	pflag.StringP(flagTrustedSubnet, "t", "", "CIDR notation of trusted subnet")
+	pflag.StringP(flagGRPCAddrName, "g", defaultGRPCAddr, "Address of the gRPC server")
 
 	pflag.Parse()
 	if err := viper.BindPFlags(pflag.CommandLine); err != nil {
@@ -91,6 +97,7 @@ func MustLoadConfig() Config {
 	signKey := viper.GetString(flagSignKeyName)
 	cryptoKey := viper.GetString(flagCryptoKeyName)
 	trustedSubnet := viper.GetString(flagTrustedSubnet)
+	grpcAddr := viper.GetString(flagGRPCAddrName)
 
 	cfg := Config{
 		Addr:            address,
@@ -101,6 +108,7 @@ func MustLoadConfig() Config {
 		SignKey:         signKey,
 		CryptoKey:       cryptoKey,
 		TrustedSubnet:   trustedSubnet,
+		GRPCAddr:        grpcAddr,
 	}
 
 	if err := env.Parse(&cfg); err != nil {

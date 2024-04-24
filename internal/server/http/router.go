@@ -1,9 +1,9 @@
-package httpserver
+package http
 
 import (
 	"github.com/go-chi/chi/v5"
 	chiMw "github.com/go-chi/chi/v5/middleware"
-	"github.com/leonf08/metrics-yp.git/internal/httpserver/middleware"
+	middleware2 "github.com/leonf08/metrics-yp.git/internal/server/http/middleware"
 	"github.com/leonf08/metrics-yp.git/internal/services"
 	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 	"github.com/rs/zerolog"
@@ -19,8 +19,8 @@ func NewRouter(
 	l zerolog.Logger,
 ) *chi.Mux {
 	r := chi.NewRouter()
-	r.Use(middleware.Logging(l), middleware.IPCheck(ip), middleware.Auth(s),
-		middleware.Crypto(cr), middleware.Compress, chiMw.Recoverer)
+	r.Use(middleware2.Logging(l), middleware2.IPCheck(ip), middleware2.Auth(s),
+		middleware2.Crypto(cr), middleware2.Compress, chiMw.Recoverer)
 
 	newHandler(r, repo, fs, l)
 

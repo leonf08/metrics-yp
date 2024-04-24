@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
-	"github.com/leonf08/metrics-yp.git/internal/httpserver"
 	"github.com/leonf08/metrics-yp.git/internal/logger"
+	"github.com/leonf08/metrics-yp.git/internal/server/grpc"
+	"github.com/leonf08/metrics-yp.git/internal/server/http"
 	"github.com/leonf08/metrics-yp.git/internal/services"
 	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 )
@@ -39,9 +40,13 @@ func Run(cfg serverconf.Config) {
 	}
 
 	if cfg.TrustedSubnet != "" {
-		if prefix, err := netip.ParsePrefix(cfg.TrustedSubnet); err == nil {
-			ip = services.NewIPChecker(prefix)
+		prefix, err := netip.ParsePrefix(cfg.TrustedSubnet)
+		if err != nil {
+			log.Error().Err(err).Msg("app - Run - ParsePrefix")
+			return
 		}
+
+		ip = services.NewIPChecker(prefix)
 	}
 
 	if cfg.IsInMemStorage() {
@@ -89,23 +94,31 @@ func Run(cfg serverconf.Config) {
 		r = db
 	}
 
-	router := httpserver.NewRouter(s, cr, r, fs, ip, log)
-	server := httpserver.NewServer(router, cfg.Addr)
-	log.Info().Str("address", cfg.Addr).Msg("app - Run - Starting server")
+	router := http.NewRouter(s, cr, r, fs, ip, log)
+	httpserver := http.NewServer(router, cfg.Addr)
+	log.Info().Str("address", cfg.Addr).Msg("app - Run - Starting httpserver")
+
+	grpcserver := grpc.NewServer(r, fs, log, cfg.GRPCAddr, cfg.TrustedSubnet)
+	log.Info().Str("address", cfg.GRPCAddr).Msg("app - Run - Starting grpcserver")
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 
 	select {
-	case err := <-server.Err():
-		log.Error().Err(err).Msg("app - Run - server.Err")
+	case err := <-httpserver.Err():
+		log.Error().Err(err).Msg("app - Run - httpserver.Err")
+	case err := <-grpcserver.Err():
+		log.Error().Err(err).Msg("app - Run - grpcserver.Err")
 	case sig := <-interrupt:
 		log.Info().Str("signal", sig.String()).Msg("app - Run - signal")
 	}
 
-	log.Info().Msg("app - Run - Shutdown the server")
-	err := server.Shutdown()
+	log.Info().Msg("app - Run - Shutdown the httpserver")
+	err := httpserver.Shutdown()
 	if err != nil {
-		log.Error().Err(err).Msg("app - Run - server.Shutdown")
+		log.Error().Err(err).Msg("app - Run - httpserver.Shutdown")
 	}
+
+	log.Info().Msg("app - Run - Shutdown the grpcserver")
+	grpcserver.Shutdown()
 }

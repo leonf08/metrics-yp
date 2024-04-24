@@ -1,4 +1,4 @@
-package client
+package workerpool
 
 import (
 	"testing"
@@ -9,9 +9,9 @@ import (
 
 func Test_workerPool_run(t *testing.T) {
 	type fields struct {
-		tasks   []task
+		tasks   []Task
 		workers int
-		jobs    chan task
+		jobs    chan Task
 		result  chan error
 		limiter ratelimit.Limiter
 	}
@@ -23,7 +23,7 @@ func Test_workerPool_run(t *testing.T) {
 		{
 			name: "Test_workerPool_run",
 			fields: fields{
-				tasks: []task{
+				tasks: []Task{
 					func() error { return nil },
 					func() error { return nil },
 					func() error { return nil },
@@ -57,7 +57,7 @@ func Test_workerPool_run(t *testing.T) {
 					func() error { return nil },
 				},
 				workers: 3,
-				jobs:    make(chan task, 30),
+				jobs:    make(chan Task, 30),
 				result:  make(chan error, 30),
 				limiter: ratelimit.New(1),
 			},
@@ -66,14 +66,14 @@ func Test_workerPool_run(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := &workerPool{
+			w := &WorkerPool{
 				tasks:   tt.fields.tasks,
 				workers: tt.fields.workers,
 				jobs:    tt.fields.jobs,
 				result:  tt.fields.result,
 				limiter: tt.fields.limiter,
 			}
-			got := w.run()
+			got := w.Run()
 			for c := range got {
 				assert.ErrorIs(t, c, tt.want)
 			}
@@ -83,7 +83,7 @@ func Test_workerPool_run(t *testing.T) {
 
 func Test_newWorkerPool(t *testing.T) {
 	type args struct {
-		ts []task
+		ts []Task
 		ws int
 		l  ratelimit.Limiter
 	}
@@ -94,7 +94,7 @@ func Test_newWorkerPool(t *testing.T) {
 		{
 			name: "Test_newWorkerPool",
 			args: args{
-				ts: []task{
+				ts: []Task{
 					func() error { return nil },
 					func() error { return nil },
 					func() error { return nil },
@@ -106,7 +106,7 @@ func Test_newWorkerPool(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := newWorkerPool(tt.args.ts, tt.args.ws, tt.args.l)
+			got := NewWorkerPool(tt.args.ts, tt.args.ws, tt.args.l)
 			assert.NotNil(t, got.tasks)
 			assert.Equal(t, tt.args.ws, got.workers)
 			assert.NotNil(t, got.jobs)

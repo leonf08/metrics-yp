@@ -105,6 +105,8 @@ func TestMustLoadConfig(t *testing.T) {
 				DatabaseAddr:    "",
 				SignKey:         "",
 				CryptoKey:       "",
+				TrustedSubnet:   "",
+				GRPCAddr:        defaultGRPCAddr,
 			},
 		},
 	}

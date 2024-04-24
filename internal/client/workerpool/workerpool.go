@@ -1,4 +1,4 @@
-package client
+package workerpool
 
 import (
 	"sync"
@@ -7,36 +7,36 @@ import (
 )
 
 type (
-	task func() error
+	Task func() error
 
-	workerPool struct {
-		tasks   []task
+	WorkerPool struct {
+		tasks   []Task
 		workers int
-		jobs    chan task
+		jobs    chan Task
 		result  chan error
 		limiter ratelimit.Limiter
 		sync.WaitGroup
 	}
 )
 
-func newWorkerPool(ts []task, ws int, l ratelimit.Limiter) *workerPool {
-	return &workerPool{
+func NewWorkerPool(ts []Task, ws int, l ratelimit.Limiter) *WorkerPool {
+	return &WorkerPool{
 		tasks:   ts,
 		workers: ws,
-		jobs:    make(chan task, len(ts)),
+		jobs:    make(chan Task, len(ts)),
 		result:  make(chan error, len(ts)),
 		limiter: l,
 	}
 }
 
-func (w *workerPool) run() <-chan error {
+func (w *WorkerPool) Run() <-chan error {
 	for i := 0; i < w.workers; i++ {
 		go w.work()
 	}
 
 	w.Add(len(w.tasks))
-	for _, task := range w.tasks {
-		w.jobs <- task
+	for _, t := range w.tasks {
+		w.jobs <- t
 	}
 
 	close(w.jobs)
@@ -49,7 +49,7 @@ func (w *workerPool) run() <-chan error {
 	return w.result
 }
 
-func (w *workerPool) work() {
+func (w *WorkerPool) work() {
 	for t := range w.jobs {
 		w.limiter.Take()
 		w.result <- t()
