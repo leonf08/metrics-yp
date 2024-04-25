@@ -531,3 +531,23 @@ func TestNewAgentService(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentService_GetMetrics(t *testing.T) {
+	mockRepo := mocks.NewRepository(t)
+	agentService := NewAgentService("json", mockRepo)
+
+	metrics := make(map[string]models.Metric)
+	metrics["testMetric"] = models.Metric{
+		Type: "gauge",
+		Val:  3.2,
+	}
+
+	mockRepo.On("ReadAll", mock.Anything).Return(metrics, nil).Once()
+	gotMetrics, err := agentService.GetMetrics(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, metrics, gotMetrics)
+
+	mockRepo.On("ReadAll", mock.Anything).Return(nil, errors.New("error")).Once()
+	_, err = agentService.GetMetrics(context.Background())
+	assert.Error(t, err)
+}

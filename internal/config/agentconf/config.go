@@ -15,6 +15,7 @@ const (
 	defaultPollInt   uint = 2
 	defaultRateLimit uint = 10
 	defaultMode           = "json"
+	defaultGRPCAddr       = "localhost:8081"
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 	flagConfigName         = "config"
 	flagModeName           = "mode"
 	flagRateLimitName      = "rate_limit"
+	flagGRPCAddrName       = "grpc_address"
 )
 
 type modeEnum string
@@ -70,6 +72,9 @@ type Config struct {
 
 	// RateLim limits the number of requests per second
 	RateLim int `env:"RATE_LIMIT"`
+
+	// GRPCAddr is the address of the gRPC server
+	GRPCAddr string `env:"GRPC_ADDRESS"`
 }
 
 // MustLoadConfig loads configuration from environment variables
@@ -85,6 +90,7 @@ func MustLoadConfig() Config {
 	pflag.UintP(flagReportIntervalName, "r", defaultReportInt, "Report interval to server")
 	pflag.UintP(flagPollIntervalName, "p", defaultPollInt, "Poll interval for metrics")
 	pflag.StringP(flagConfigName, "c", "", "Path to the configuration file")
+	pflag.StringP(flagGRPCAddrName, "g", defaultGRPCAddr, "Address of the gRPC server")
 
 	pflag.Parse()
 	if err := viper.BindPFlags(pflag.CommandLine); err != nil {
@@ -109,6 +115,7 @@ func MustLoadConfig() Config {
 	reportInt := viper.GetUint(flagReportIntervalName)
 	pollInt := viper.GetUint(flagPollIntervalName)
 	rate := viper.GetUint(flagRateLimitName)
+	grpcAddr := viper.GetString(flagGRPCAddrName)
 
 	cfg := Config{
 		Addr:      address,
@@ -118,6 +125,7 @@ func MustLoadConfig() Config {
 		ReportInt: reportInt,
 		PollInt:   pollInt,
 		RateLim:   int(rate),
+		GRPCAddr:  grpcAddr,
 	}
 	if err := env.Parse(&cfg); err != nil {
 		panic(err)

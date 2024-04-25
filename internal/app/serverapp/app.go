@@ -1,14 +1,16 @@
 package serverapp
 
 import (
+	"net/netip"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/leonf08/metrics-yp.git/internal/config/serverconf"
-	"github.com/leonf08/metrics-yp.git/internal/httpserver"
 	"github.com/leonf08/metrics-yp.git/internal/logger"
+	"github.com/leonf08/metrics-yp.git/internal/server/grpc"
+	"github.com/leonf08/metrics-yp.git/internal/server/http"
 	"github.com/leonf08/metrics-yp.git/internal/services"
 	"github.com/leonf08/metrics-yp.git/internal/services/repo"
 )
@@ -23,15 +25,29 @@ import (
 // when the server starts. The metrics are saved to the file every period
 // of time specified in the configuration.
 func Run(cfg serverconf.Config) {
-	log := logger.NewLogger()
-
-	s := services.NewHashSigner(cfg.SignKey)
-
 	var (
 		r  repo.Repository
 		fs services.FileStore
 		cr services.Crypto
+		ip services.IPChecker
 	)
+
+	log := logger.NewLogger()
+	s := services.NewHashSigner(cfg.SignKey)
+
+	if cfg.CryptoKey != "" {
+		cr = services.NewCryptoService(cfg.CryptoKey)
+	}
+
+	if cfg.TrustedSubnet != "" {
+		prefix, err := netip.ParsePrefix(cfg.TrustedSubnet)
+		if err != nil {
+			log.Error().Err(err).Msg("app - Run - ParsePrefix")
+			return
+		}
+
+		ip = services.NewIPChecker(prefix)
+	}
 
 	if cfg.IsInMemStorage() {
 		r = repo.NewStorage()
@@ -78,27 +94,31 @@ func Run(cfg serverconf.Config) {
 		r = db
 	}
 
-	if cfg.CryptoKey != "" {
-		cr = services.NewCryptoService(cfg.CryptoKey)
-	}
+	router := http.NewRouter(s, cr, r, fs, ip, log)
+	httpserver := http.NewServer(router, cfg.Addr)
+	log.Info().Str("address", cfg.Addr).Msg("app - Run - Starting httpserver")
 
-	router := httpserver.NewRouter(s, cr, r, fs, log)
-	server := httpserver.NewServer(router, cfg.Addr)
-	log.Info().Str("address", cfg.Addr).Msg("app - Run - Starting server")
+	grpcserver := grpc.NewServer(r, fs, log, cfg.GRPCAddr, cfg.TrustedSubnet)
+	log.Info().Str("address", cfg.GRPCAddr).Msg("app - Run - Starting grpcserver")
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 
 	select {
-	case err := <-server.Err():
-		log.Error().Err(err).Msg("app - Run - server.Err")
+	case err := <-httpserver.Err():
+		log.Error().Err(err).Msg("app - Run - httpserver.Err")
+	case err := <-grpcserver.Err():
+		log.Error().Err(err).Msg("app - Run - grpcserver.Err")
 	case sig := <-interrupt:
 		log.Info().Str("signal", sig.String()).Msg("app - Run - signal")
 	}
 
-	log.Info().Msg("app - Run - Shutdown the server")
-	err := server.Shutdown()
+	log.Info().Msg("app - Run - Shutdown the httpserver")
+	err := httpserver.Shutdown()
 	if err != nil {
-		log.Error().Err(err).Msg("app - Run - server.Shutdown")
+		log.Error().Err(err).Msg("app - Run - httpserver.Shutdown")
 	}
+
+	log.Info().Msg("app - Run - Shutdown the grpcserver")
+	grpcserver.Shutdown()
 }

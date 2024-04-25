@@ -76,6 +76,11 @@ func (a *AgentService) ReportMetrics(ctx context.Context) ([]string, error) {
 	}
 }
 
+// GetMetrics returns all metrics.
+func (a *AgentService) GetMetrics(ctx context.Context) (map[string]models.Metric, error) {
+	return a.repo.ReadAll(ctx)
+}
+
 func (a *AgentService) jsonMetrics(ctx context.Context) ([]string, error) {
 	str := strings.Builder{}
 	gzWriter := gzip.NewWriter(&str)

@@ -20,6 +20,7 @@ func TestMustLoadConfig(t *testing.T) {
 				ReportInt: defaultReportInt,
 				PollInt:   defaultPollInt,
 				RateLim:   int(defaultRateLimit),
+				GRPCAddr:  defaultGRPCAddr,
 			},
 		},
 	}

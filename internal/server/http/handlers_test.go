@@ -1,5 +1,5 @@
 //nolint:all
-package httpserver
+package http
 
 import (
 	"bytes"
